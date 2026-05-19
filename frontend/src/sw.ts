@@ -51,7 +51,11 @@ self.addEventListener('push', (event: PushEvent) => {
   const count = payload.currentAccepted ?? 1;
   const body = `${triggeredBy} wants to play. ${count} in so far. Are you?`;
 
-  const options: NotificationOptions & { actions?: Array<{ action: string; title: string }>; image?: string } = {
+  const options: NotificationOptions & {
+    actions?: Array<{ action: string; title: string }>;
+    image?: string;
+    renotify?: boolean;
+  } = {
     body,
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
