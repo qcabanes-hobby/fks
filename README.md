@@ -87,6 +87,29 @@ Alternatively, configure the GitHub Actions workflow at
 the VPS on every push to `main`. See the comment at the top of that file for
 the secrets you need to add.
 
+### Hourly auto-deploy (optional)
+
+`auto-deploy.sh` is a thin wrapper around `deploy.sh` for cron. Each run it
+fetches `origin/main`, compares it to local `HEAD`, and only redeploys when
+they differ — so it's safe to schedule frequently. A `flock` prevents two
+runs from overlapping.
+
+Install on the VPS (as the user that owns `/opt/fks` and has Docker access):
+
+```bash
+sudo touch /var/log/fks-auto-deploy.log
+sudo chown "$USER":"$USER" /var/log/fks-auto-deploy.log
+crontab -e
+```
+
+Add the line:
+
+```
+0 * * * * /opt/fks/auto-deploy.sh >> /var/log/fks-auto-deploy.log 2>&1
+```
+
+Tail the log to watch it work: `tail -f /var/log/fks-auto-deploy.log`.
+
 ## Backups
 
 A `backup.sh` helper is included. It runs `pg_dump` inside the `db` container,
