@@ -23,9 +23,14 @@ on the internal Docker network `fks_internal`.
 
 ## First-time deploy on a fresh VPS
 
-1. **Install Docker + the Docker Compose plugin** on the VPS. On Debian/Ubuntu:
+1. **Install Docker + the Docker Compose plugin, and Node 20** on the VPS.
+   Docker runs the stack; Node is needed to build the frontend before each
+   deploy (Caddy serves the static `frontend/dist`). On Debian/Ubuntu:
    ```bash
    curl -fsSL https://get.docker.com | sh
+   sudo apt-get install -y docker-compose-plugin
+   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+   sudo apt-get install -y nodejs
    ```
 2. **DNS + firewall**. Point an `A` record for your domain at the VPS public
    IP. Open inbound TCP **80** and **443**. Port 80 must stay open — Caddy
