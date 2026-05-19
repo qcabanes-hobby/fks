@@ -76,11 +76,22 @@ export function isMacSafari(): boolean {
   return isSafariEngine() && !isIOS();
 }
 
+const STANDALONE_DISPLAY_MODES = [
+  'standalone',
+  'minimal-ui',
+  'fullscreen',
+  'window-controls-overlay',
+] as const;
+
 export function isStandalone(): boolean {
   if (typeof window === 'undefined') return false;
-  const mq = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
-  const ios = (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-  return !!(mq || ios);
+  if (window.matchMedia) {
+    for (const mode of STANDALONE_DISPLAY_MODES) {
+      if (window.matchMedia(`(display-mode: ${mode})`).matches) return true;
+    }
+  }
+  if ((window.navigator as Navigator & { standalone?: boolean }).standalone === true) return true;
+  return false;
 }
 
 export interface InstallState {
@@ -97,12 +108,12 @@ export function useInstallState(): InstallState {
   useEffect(() => {
     const l = () => force((n) => n + 1);
     listeners.add(l);
-    const mq = window.matchMedia('(display-mode: standalone)');
     const onChange = () => force((n) => n + 1);
-    mq.addEventListener?.('change', onChange);
+    const queries = STANDALONE_DISPLAY_MODES.map((m) => window.matchMedia(`(display-mode: ${m})`));
+    queries.forEach((q) => q.addEventListener?.('change', onChange));
     return () => {
       listeners.delete(l);
-      mq.removeEventListener?.('change', onChange);
+      queries.forEach((q) => q.removeEventListener?.('change', onChange));
     };
   }, []);
   return {
