@@ -1,8 +1,9 @@
 FROM node:20-slim AS builder
 WORKDIR /app
 
-RUN apt-get update -qq \
- && apt-get install -y -qq --no-install-recommends openssl ca-certificates \
+RUN rm -f /etc/apt/apt.conf.d/docker-clean \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends openssl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json* ./
@@ -22,8 +23,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-RUN apt-get update -qq \
- && apt-get install -y -qq --no-install-recommends openssl ca-certificates \
+RUN rm -f /etc/apt/apt.conf.d/docker-clean \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends openssl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/node_modules ./node_modules
