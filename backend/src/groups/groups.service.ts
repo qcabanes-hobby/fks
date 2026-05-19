@@ -80,6 +80,26 @@ export class GroupsService {
     return { group: { id: group.id, code: group.code, name: group.name } };
   }
 
+  async leaveGroup(userId: string): Promise<void> {
+    const membership = await this.prisma.groupMember.findFirst({ where: { userId } });
+    if (!membership) {
+      throw new NotFoundException('Not in a group');
+    }
+    const { groupId } = membership;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.gameSubscription.deleteMany({
+        where: { userId, game: { groupId } },
+      });
+      await tx.groupMember.delete({
+        where: { userId_groupId: { userId, groupId } },
+      });
+      const remaining = await tx.groupMember.count({ where: { groupId } });
+      if (remaining === 0) {
+        await tx.group.delete({ where: { id: groupId } });
+      }
+    });
+  }
+
   async getMyGroup(userId: string) {
     const membership = await this.prisma.groupMember.findFirst({
       where: { userId },
@@ -87,7 +107,7 @@ export class GroupsService {
         group: {
           include: {
             members: { include: { user: true } },
-            games: true,
+            games: { include: { subscriptions: { where: { userId } } } },
           },
         },
       },
@@ -111,6 +131,7 @@ export class GroupsService {
         name: g.name,
         imageUrl: g.imageUrl,
         createdAt: g.createdAt,
+        subscribed: g.subscriptions.length > 0,
       })),
     };
   }

@@ -16,7 +16,8 @@ clientsClaim();
 
 interface PushPayload {
   signalId: string;
-  gameName: string;
+  type?: 'signal' | 'cancel';
+  gameName?: string;
   gameImageUrl?: string | null;
   triggeredBy?: string;
   currentAccepted?: number;
@@ -30,6 +31,20 @@ self.addEventListener('push', (event: PushEvent) => {
     payload = null;
   }
   if (!payload || !payload.signalId) return;
+
+  if (payload.type === 'cancel') {
+    event.waitUntil(
+      (async () => {
+        const notes = await self.registration.getNotifications({ tag: payload!.signalId });
+        for (const n of notes) n.close();
+        const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const c of clients) {
+          c.postMessage({ type: 'signal-cancel', signalId: payload!.signalId });
+        }
+      })(),
+    );
+    return;
+  }
 
   const title = `🥙 Kebab signal: ${payload.gameName}`;
   const triggeredBy = payload.triggeredBy || 'Someone';
@@ -50,7 +65,21 @@ self.addEventListener('push', (event: PushEvent) => {
   };
   if (payload.gameImageUrl) options.image = payload.gameImageUrl;
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    (async () => {
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const visible = clients.find((c) => (c as WindowClient).visibilityState === 'visible');
+      if (visible) {
+        visible.postMessage({
+          type: 'signal-incoming',
+          signalId: payload!.signalId,
+          gameName: payload!.gameName,
+        });
+        return;
+      }
+      await self.registration.showNotification(title, options);
+    })(),
+  );
 });
 
 async function respondInBackground(signalId: string, response: 'accept' | 'reject'): Promise<void> {

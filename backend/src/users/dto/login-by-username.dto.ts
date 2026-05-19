@@ -1,4 +1,4 @@
-import { IsOptional, IsString, Matches } from 'class-validator';
+import { IsString, Matches } from 'class-validator';
 
 export class LoginByUsernameDto {
   @IsString()
@@ -6,9 +6,4 @@ export class LoginByUsernameDto {
     message: 'username must be 3-20 chars (letters, digits, _ or -)',
   })
   username!: string;
-
-  @IsOptional()
-  @IsString()
-  @Matches(/^[A-HJ-NP-Z2-9]{5}$/, { message: 'invalid group code' })
-  groupCode?: string;
 }

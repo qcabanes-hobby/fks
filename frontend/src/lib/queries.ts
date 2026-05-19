@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from './api';
-import { setToken } from './auth';
+import { setActiveSignal, setToken } from './auth';
 import type { AuthResult, Game, Group, GroupWithMembers, Signal, User } from './types';
 
 export const qk = {
@@ -52,7 +52,6 @@ export function useJoinGroup() {
 
 interface LoginByUsernameInput {
   username: string;
-  groupCode?: string;
 }
 export function useLoginByUsername() {
   return useMutation<AuthResult, Error, LoginByUsernameInput>({
@@ -73,6 +72,30 @@ export function useCreateGroup() {
     mutationFn: (input) => apiRequest<{ group: Group }>('/api/groups', { method: 'POST', body: input }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.group });
+    },
+  });
+}
+
+interface JoinGroupByCodeInput {
+  code: string;
+}
+export function useJoinGroupByCode() {
+  const qc = useQueryClient();
+  return useMutation<{ group: Group }, Error, JoinGroupByCodeInput>({
+    mutationFn: (input) => apiRequest<{ group: Group }>('/api/groups/join', { method: 'POST', body: input }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.group });
+    },
+  });
+}
+
+export function useLeaveGroup() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, void>({
+    mutationFn: () => apiRequest<void>('/api/groups/me', { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.group });
+      qc.invalidateQueries({ queryKey: qk.games });
     },
   });
 }
@@ -141,6 +164,9 @@ interface TriggerSignalInput {
 export function useTriggerSignal() {
   return useMutation<{ signalId: string }, Error, TriggerSignalInput>({
     mutationFn: (input) => apiRequest<{ signalId: string }>('/api/signals', { method: 'POST', body: input }),
+    onSuccess: (res) => {
+      setActiveSignal(res.signalId);
+    },
   });
 }
 
@@ -155,6 +181,16 @@ export function useRespondToSignal() {
       apiRequest<void>(`/api/signals/${signalId}/respond`, { method: 'POST', body: { response } }),
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: qk.signal(vars.signalId) });
+    },
+  });
+}
+
+export function useCloseSignal() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: (signalId) => apiRequest<void>(`/api/signals/${signalId}/close`, { method: 'POST' }),
+    onSuccess: (_d, signalId) => {
+      qc.invalidateQueries({ queryKey: qk.signal(signalId) });
     },
   });
 }

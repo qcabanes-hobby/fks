@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
+import { getActiveSignal } from '../lib/auth';
 import {
   useCreateGame,
   useDeleteGame,
   useGames,
   useGroup,
+  useLeaveGroup,
   useSubscribe,
   useTriggerSignal,
   useUnsubscribe,
@@ -23,10 +26,36 @@ export function GamesPage() {
   const create = useCreateGame();
   const del = useDeleteGame();
   const trigger = useTriggerSignal();
+  const leave = useLeaveGroup();
 
   const [addOpen, setAddOpen] = useState(false);
   const [confirmGame, setConfirmGame] = useState<Game | null>(null);
+  const [deleteGame, setDeleteGame] = useState<Game | null>(null);
+  const [leaveOpen, setLeaveOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+
+  useEffect(() => {
+    const active = getActiveSignal();
+    if (active) {
+      navigate(`/signal/${active}/sent`, { replace: true });
+      return;
+    }
+    if (group.isFetching) return;
+    if (group.isError || !group.data || !group.data.id) {
+      navigate('/onboarding/group', { replace: true });
+    }
+  }, [group.isFetching, group.isError, group.data, navigate]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = () => setMenuOpen(null);
+    document.addEventListener('mousedown', close);
+    document.addEventListener('touchstart', close);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('touchstart', close);
+    };
+  }, [menuOpen]);
 
   const onToggleSubscribe = async (g: Game) => {
     try {
@@ -48,6 +77,27 @@ export function GamesPage() {
     }
   };
 
+  const onConfirmDelete = async () => {
+    if (!deleteGame) return;
+    try {
+      await del.mutateAsync(deleteGame.id);
+      setDeleteGame(null);
+      setMenuOpen(null);
+    } catch (err) {
+      toast.show((err as Error).message || 'Could not delete', 'error');
+    }
+  };
+
+  const onConfirmLeave = async () => {
+    try {
+      await leave.mutateAsync();
+      setLeaveOpen(false);
+      navigate('/onboarding/group', { replace: true });
+    } catch (err) {
+      toast.show((err as Error).message || 'Could not leave group', 'error');
+    }
+  };
+
   return (
     <div className="min-h-full p-4 max-w-2xl mx-auto w-full pb-32">
       <header className="flex items-center justify-between py-4">
@@ -57,6 +107,15 @@ export function GamesPage() {
             <p className="text-xs text-slate-500 font-mono tracking-widest">CODE {group.data.code}</p>
           )}
         </div>
+        {group.data?.id && (
+          <button
+            type="button"
+            onClick={() => setLeaveOpen(true)}
+            className="text-sm text-slate-400 hover:text-red-400 px-2 py-1"
+          >
+            Leave
+          </button>
+        )}
       </header>
 
       {games.isLoading ? (
@@ -71,14 +130,9 @@ export function GamesPage() {
               onToggle={() => onToggleSubscribe(g)}
               menuOpen={menuOpen === g.id}
               setMenuOpen={(o) => setMenuOpen(o ? g.id : null)}
-              onDelete={async () => {
-                if (!confirm(`Delete ${g.name}?`)) return;
-                try {
-                  await del.mutateAsync(g.id);
-                  setMenuOpen(null);
-                } catch (err) {
-                  toast.show((err as Error).message || 'Could not delete', 'error');
-                }
+              onDelete={() => {
+                setMenuOpen(null);
+                setDeleteGame(g);
               }}
             />
           ))}
@@ -86,7 +140,10 @@ export function GamesPage() {
       ) : (
         <div className="card text-center py-12">
           <div className="text-4xl mb-2">🎮</div>
-          <p className="text-slate-400">No games yet. Add one to send your first signal.</p>
+          <p className="text-slate-400 mb-6">No games yet. Add one to send your first signal.</p>
+          <button onClick={() => setAddOpen(true)} className="btn-primary">
+            + Add your first game
+          </button>
         </div>
       )}
 
@@ -94,24 +151,59 @@ export function GamesPage() {
         + Add game
       </button>
 
-      <Modal open={!!confirmGame} onClose={() => setConfirmGame(null)} title="Send the kebab signal?">
-        {confirmGame && (
-          <div className="space-y-4">
-            <p className="text-slate-300">
+      <ConfirmDialog
+        open={!!confirmGame}
+        onClose={() => setConfirmGame(null)}
+        onConfirm={onConfirmTrigger}
+        title="Send the kebab signal?"
+        message={
+          confirmGame && (
+            <p>
               Everyone subscribed to <span className="font-semibold text-signal-400">{confirmGame.name}</span> will get a
               push notification.
             </p>
-            <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setConfirmGame(null)} className="btn-secondary">
-                Cancel
-              </button>
-              <button onClick={onConfirmTrigger} disabled={trigger.isPending} className="btn-primary">
-                {trigger.isPending ? 'Sending…' : "Send signal 🥙"}
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
+          )
+        }
+        confirmLabel="Send signal 🥙"
+        busyLabel="Sending…"
+        busy={trigger.isPending}
+      />
+
+      <ConfirmDialog
+        open={!!deleteGame}
+        onClose={() => setDeleteGame(null)}
+        onConfirm={onConfirmDelete}
+        title="Delete this game?"
+        message={
+          deleteGame && (
+            <p>
+              <span className="font-semibold text-slate-100">{deleteGame.name}</span> will be removed for the whole group,
+              along with its history.
+            </p>
+          )
+        }
+        confirmLabel="Delete"
+        busyLabel="Deleting…"
+        confirmTone="danger"
+        busy={del.isPending}
+      />
+
+      <ConfirmDialog
+        open={leaveOpen}
+        onClose={() => setLeaveOpen(false)}
+        onConfirm={onConfirmLeave}
+        title={`Leave ${group.data?.name ?? 'this group'}?`}
+        message={
+          <p>
+            You'll stop getting signals from this group and lose your subscriptions. You can rejoin later with the
+            group code.
+          </p>
+        }
+        confirmLabel="Leave group"
+        busyLabel="Leaving…"
+        confirmTone="danger"
+        busy={leave.isPending}
+      />
 
       <AddGameModal
         open={addOpen}
@@ -151,35 +243,48 @@ function GameCard({ game, onTap, onToggle, menuOpen, setMenuOpen, onDelete }: Ga
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold truncate">{game.name}</div>
-          <div className="text-xs text-slate-500">Tap to send signal</div>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold truncate">{game.name}</div>
+              <div className="text-xs text-slate-500">Tap to send signal</div>
+            </div>
+            <button
+              type="button"
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(!menuOpen);
+              }}
+              aria-label="More"
+              className="-mt-2 -mr-2 inline-flex items-center justify-center w-11 h-11 rounded-lg text-xl text-slate-400 hover:bg-slate-800 flex-shrink-0"
+            >
+              ⋮
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+            aria-label={game.subscribed ? 'Unsubscribe' : 'Subscribe'}
+            className={`mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
+              game.subscribed
+                ? 'bg-signal-600/15 border-signal-600/50 text-signal-300'
+                : 'bg-slate-800 border-slate-700 text-slate-400'
+            }`}
+          >
+            <span aria-hidden>{game.subscribed ? '🔔' : '🔕'}</span>
+            <span>{game.subscribed ? 'Subscribed' : 'Off'}</span>
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle();
-          }}
-          aria-label={game.subscribed ? 'Unsubscribe' : 'Subscribe'}
-          className={`p-2 rounded-lg text-xl ${game.subscribed ? 'text-signal-500' : 'text-slate-600'}`}
-        >
-          🔔
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setMenuOpen(!menuOpen);
-          }}
-          aria-label="More"
-          className="p-2 rounded-lg text-slate-400 hover:bg-slate-800"
-        >
-          ⋮
-        </button>
       </div>
       {menuOpen && (
         <div
           className="absolute top-2 right-2 mt-10 bg-slate-800 border border-slate-700 rounded-lg overflow-hidden shadow-xl z-10"
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
           <button

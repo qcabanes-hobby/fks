@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCreateUser, useJoinGroup } from '../lib/queries';
+import { getToken } from '../lib/auth';
+import { useCreateUser, useGroup, useJoinGroup } from '../lib/queries';
 import { useToast } from '../components/Toast';
 
 type Mode = 'join' | 'create';
@@ -13,6 +14,18 @@ export function OnboardingPage() {
   const toast = useToast();
   const createUser = useCreateUser();
   const joinGroup = useJoinGroup();
+  const hasToken = !!getToken();
+  const group = useGroup(hasToken);
+
+  useEffect(() => {
+    if (!hasToken) return;
+    if (group.isFetching) return;
+    if (group.data && group.data.id) {
+      navigate('/games', { replace: true });
+    } else {
+      navigate('/onboarding/group', { replace: true });
+    }
+  }, [hasToken, group.isFetching, group.data, navigate]);
 
   useEffect(() => {
     try {
@@ -112,6 +125,13 @@ export function OnboardingPage() {
         )}
         <button type="submit" disabled={busy} className="btn-primary w-full text-lg">
           {busy ? 'Hold on…' : mode === 'join' ? 'Join group' : 'Create my account'}
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/relogin')}
+          className="btn-ghost w-full"
+        >
+          Already have an account? Reconnect
         </button>
       </form>
 

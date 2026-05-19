@@ -92,6 +92,9 @@ export class SignalsService {
     if (!signal) {
       throw new NotFoundException('Signal not found');
     }
+    if (signal.closedAt) {
+      throw new BadRequestException('Signal is closed');
+    }
 
     await this.prisma.signalResponse.upsert({
       where: { signalId_userId: { signalId, userId } },
@@ -104,6 +107,36 @@ export class SignalsService {
     });
     this.streams.emit(signalId, acceptedCount);
     return { acceptedCount };
+  }
+
+  async closeSignal(userId: string, signalId: string): Promise<void> {
+    const signal = await this.prisma.signal.findUnique({ where: { id: signalId } });
+    if (!signal) {
+      throw new NotFoundException('Signal not found');
+    }
+    if (signal.triggeredById !== userId) {
+      throw new ForbiddenException('Only the sender can close this signal');
+    }
+    if (signal.closedAt) return;
+
+    await this.prisma.signal.update({
+      where: { id: signalId },
+      data: { closedAt: new Date() },
+    });
+
+    const subscribers = await this.prisma.gameSubscription.findMany({
+      where: { gameId: signal.gameId, userId: { not: userId } },
+      select: { userId: true },
+    });
+    const responders = await this.prisma.signalResponse.findMany({
+      where: { signalId },
+      select: { userId: true },
+    });
+    const respondedIds = new Set(responders.map((r) => r.userId));
+    const pending = subscribers.filter((s) => !respondedIds.has(s.userId));
+
+    const payload = { signalId, type: 'cancel' as const };
+    await Promise.all(pending.map((p) => this.push.sendToUser(p.userId, payload)));
   }
 
   async getSignal(signalId: string) {
@@ -127,6 +160,7 @@ export class SignalsService {
       gameImageUrl: signal.game.imageUrl,
       triggeredBy: signal.triggeredBy.username,
       triggeredAt: signal.triggeredAt,
+      closedAt: signal.closedAt,
       acceptedCount,
     };
   }

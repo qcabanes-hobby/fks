@@ -23,6 +23,6 @@ export class UsersController {
   @Post('me/login-by-username')
   @HttpCode(200)
   loginByUsername(@Body() dto: LoginByUsernameDto) {
-    return this.users.loginByUsername(dto.username, dto.groupCode);
+    return this.users.loginByUsername(dto.username);
   }
 }

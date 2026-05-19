@@ -1,6 +1,27 @@
 import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
 
 const STORAGE_KEY = 'fks.authToken';
+const ACTIVE_SIGNAL_KEY = 'fks.activeSignal';
+
+export function getActiveSignal(): string | null {
+  try {
+    return localStorage.getItem(ACTIVE_SIGNAL_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setActiveSignal(id: string): void {
+  try {
+    localStorage.setItem(ACTIVE_SIGNAL_KEY, id);
+  } catch {}
+}
+
+export function clearActiveSignal(): void {
+  try {
+    localStorage.removeItem(ACTIVE_SIGNAL_KEY);
+  } catch {}
+}
 
 export function getToken(): string | null {
   try {
@@ -25,12 +46,25 @@ export function clearToken(): void {
 }
 
 export async function syncTokenToIdb(): Promise<void> {
-  const t = getToken();
-  if (!t) return;
+  const local = getToken();
   try {
-    const existing = await idbGet<string>(STORAGE_KEY);
-    if (existing !== t) {
-      await idbSet(STORAGE_KEY, t);
+    const remembered = await idbGet<string>(STORAGE_KEY);
+    if (!local && remembered) {
+      try {
+        localStorage.setItem(STORAGE_KEY, remembered);
+      } catch {}
+      return;
+    }
+    if (local && remembered !== local) {
+      await idbSet(STORAGE_KEY, local);
+    }
+  } catch {}
+}
+
+export async function requestPersistentStorage(): Promise<void> {
+  try {
+    if (navigator.storage && navigator.storage.persist) {
+      await navigator.storage.persist();
     }
   } catch {}
 }

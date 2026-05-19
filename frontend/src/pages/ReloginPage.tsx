@@ -5,7 +5,6 @@ import { useToast } from '../components/Toast';
 
 export function ReloginPage() {
   const [username, setUsername] = useState('');
-  const [code, setCode] = useState('');
   const login = useLoginByUsername();
   const navigate = useNavigate();
   const toast = useToast();
@@ -15,10 +14,7 @@ export function ReloginPage() {
     const u = username.trim();
     if (!u) return;
     try {
-      await login.mutateAsync({
-        username: u,
-        groupCode: code.trim().toUpperCase() || undefined,
-      });
+      await login.mutateAsync({ username: u });
       navigate('/games', { replace: true });
     } catch (err) {
       toast.show((err as Error).message || 'Login failed', 'error');
@@ -43,15 +39,6 @@ export function ReloginPage() {
           onChange={(e) => setUsername(e.target.value)}
           maxLength={32}
           required
-        />
-        <input
-          className="input tracking-[0.3em] uppercase text-center font-mono"
-          autoCapitalize="characters"
-          autoCorrect="off"
-          placeholder="Group code (optional)"
-          value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 5))}
-          maxLength={5}
         />
         <button disabled={login.isPending} type="submit" className="btn-primary w-full text-lg">
           {login.isPending ? 'Reconnecting…' : 'Reconnect'}

@@ -9,20 +9,43 @@ export function urlBase64ToUint8Array(base64: string): Uint8Array {
   return out;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
 async function getRegistration(): Promise<ServiceWorkerRegistration | null> {
   if (!('serviceWorker' in navigator)) return null;
   const existing = await navigator.serviceWorker.getRegistration();
   if (existing) return existing;
-  return navigator.serviceWorker.ready;
+  try {
+    return await withTimeout(navigator.serviceWorker.ready, 6000, 'serviceWorker.ready');
+  } catch {
+    return null;
+  }
 }
 
-export async function ensurePushSubscription(): Promise<boolean> {
+export async function ensurePushSubscription(
+  { promptIfNeeded = true }: { promptIfNeeded?: boolean } = {},
+): Promise<boolean> {
   if (typeof window === 'undefined') return false;
   if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
     return false;
   }
   let permission = Notification.permission;
   if (permission === 'default') {
+    if (!promptIfNeeded) return false;
     permission = await Notification.requestPermission();
   }
   if (permission !== 'granted') return false;
@@ -30,15 +53,23 @@ export async function ensurePushSubscription(): Promise<boolean> {
   const reg = await getRegistration();
   if (!reg) return false;
 
-  const { key } = await apiRequest<{ key: string }>('/api/push/vapid-public-key', { auth: false });
-  if (!key) return false;
+  const { publicKey } = await apiRequest<{ publicKey: string }>('/api/push/vapid-public-key', { auth: false });
+  if (!publicKey) return false;
 
   let sub = await reg.pushManager.getSubscription();
   if (!sub) {
-    sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(key),
-    });
+    try {
+      sub = await withTimeout(
+        reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        }),
+        8000,
+        'pushManager.subscribe',
+      );
+    } catch {
+      return false;
+    }
   }
 
   const raw = sub.toJSON();

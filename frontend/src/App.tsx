@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { getToken, syncTokenToIdb } from './lib/auth';
+import { getActiveSignal, getToken, requestPersistentStorage, syncTokenToIdb } from './lib/auth';
+import { ensurePushSubscription } from './lib/push';
 import { isStandalone } from './lib/pwa';
 import { useGroup } from './lib/queries';
 import { ToastProvider, useToast } from './components/Toast';
@@ -24,6 +25,11 @@ export default function App() {
 
 function AppInner() {
   const toast = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const locationRef = useRef(location);
+  locationRef.current = location;
+  const [bootReady, setBootReady] = useState(false);
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
@@ -34,7 +40,14 @@ function AppInner() {
   });
 
   useEffect(() => {
-    void syncTokenToIdb();
+    (async () => {
+      await syncTokenToIdb();
+      void requestPersistentStorage();
+      setBootReady(true);
+      if (getToken()) {
+        void ensurePushSubscription({ promptIfNeeded: false }).catch(() => {});
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -45,6 +58,32 @@ function AppInner() {
       });
     }
   }, [needRefresh, updateServiceWorker, toast]);
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const handler = (event: MessageEvent) => {
+      const data = event.data as { type?: string; signalId?: string } | null;
+      if (!data || !data.signalId) return;
+      if (data.type === 'signal-incoming') {
+        navigate(`/signal/${data.signalId}/respond`);
+      } else if (data.type === 'signal-cancel') {
+        const path = locationRef.current.pathname;
+        if (path === `/signal/${data.signalId}/respond`) {
+          navigate('/games', { replace: true });
+        }
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handler);
+    return () => navigator.serviceWorker.removeEventListener('message', handler);
+  }, [navigate]);
+
+  if (!bootReady) {
+    return (
+      <div className="min-h-full flex items-center justify-center">
+        <div className="text-slate-500">Loading…</div>
+      </div>
+    );
+  }
 
   return (
     <Routes>
@@ -81,6 +120,11 @@ function RootRedirect() {
     if (groupQuery.isLoading) return;
     if (groupQuery.isError || !groupQuery.data || !groupQuery.data.id) {
       navigate('/onboarding/group', { replace: true });
+      return;
+    }
+    const activeSignal = getActiveSignal();
+    if (activeSignal) {
+      navigate(`/signal/${activeSignal}/sent`, { replace: true });
       return;
     }
     navigate('/games', { replace: true });

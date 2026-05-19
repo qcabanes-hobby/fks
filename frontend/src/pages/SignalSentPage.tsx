@@ -1,17 +1,31 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useSignal } from '../lib/queries';
-import { getToken } from '../lib/auth';
+import { useCloseSignal, useSignal } from '../lib/queries';
+import { clearActiveSignal, getToken, setActiveSignal } from '../lib/auth';
+import { useToast } from '../components/Toast';
 
 export function SignalSentPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
   const [sseFailed, setSseFailed] = useState(false);
   const [liveCount, setLiveCount] = useState<number | null>(null);
+  const close = useCloseSignal();
 
   const signal = useSignal(id, {
     refetchInterval: sseFailed ? 5000 : false,
   });
+
+  useEffect(() => {
+    if (id) setActiveSignal(id);
+  }, [id]);
+
+  useEffect(() => {
+    if (signal.isError) {
+      clearActiveSignal();
+      navigate('/games', { replace: true });
+    }
+  }, [signal.isError, navigate]);
 
   useEffect(() => {
     if (!id) return;
@@ -48,6 +62,18 @@ export function SignalSentPage() {
   const count = liveCount ?? signal.data?.acceptedCount ?? 1;
   const gameName = signal.data?.gameName ?? 'your game';
 
+  const onDone = async () => {
+    if (!id) return;
+    try {
+      await close.mutateAsync(id);
+    } catch (err) {
+      toast.show((err as Error).message || 'Could not close the signal', 'error');
+      return;
+    }
+    clearActiveSignal();
+    navigate('/games', { replace: true });
+  };
+
   return (
     <div className="min-h-full flex flex-col items-center justify-center p-6 text-center">
       <div className="relative w-48 h-48 flex items-center justify-center mb-8">
@@ -63,8 +89,8 @@ export function SignalSentPage() {
           {count === 1 ? 'person is in!' : 'people are in!'}
         </div>
       </div>
-      <button onClick={() => navigate('/games', { replace: true })} className="btn-secondary mt-8 px-8">
-        Done
+      <button onClick={onDone} disabled={close.isPending} className="btn-secondary mt-8 px-8">
+        {close.isPending ? 'Closing…' : 'Done'}
       </button>
     </div>
   );

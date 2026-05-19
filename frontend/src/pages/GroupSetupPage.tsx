@@ -1,25 +1,51 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCreateGroup } from '../lib/queries';
+import { useCreateGroup, useGroup, useJoinGroupByCode } from '../lib/queries';
 import { useToast } from '../components/Toast';
 import type { Group } from '../lib/types';
 
+type Mode = 'join' | 'create';
+
 export function GroupSetupPage() {
+  const [mode, setMode] = useState<Mode>('join');
   const [name, setName] = useState('');
+  const [code, setCode] = useState('');
   const [created, setCreated] = useState<Group | null>(null);
   const create = useCreateGroup();
+  const join = useJoinGroupByCode();
+  const group = useGroup();
   const navigate = useNavigate();
   const toast = useToast();
 
+  useEffect(() => {
+    if (created) return;
+    if (group.isFetching) return;
+    if (group.data && group.data.id) {
+      navigate('/games', { replace: true });
+    }
+  }, [created, group.isFetching, group.data, navigate]);
+
+  const busy = create.isPending || join.isPending;
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const n = name.trim();
-    if (!n) return;
     try {
-      const res = await create.mutateAsync({ name: n });
-      setCreated(res.group);
+      if (mode === 'join') {
+        const c = code.trim().toUpperCase();
+        if (c.length !== 5) {
+          toast.show('Group code must be 5 characters', 'error');
+          return;
+        }
+        await join.mutateAsync({ code: c });
+        navigate('/games', { replace: true });
+      } else {
+        const n = name.trim();
+        if (!n) return;
+        const res = await create.mutateAsync({ name: n });
+        setCreated(res.group);
+      }
     } catch (err) {
-      toast.show((err as Error).message || 'Could not create group', 'error');
+      toast.show((err as Error).message || (mode === 'join' ? 'Could not join group' : 'Could not create group'), 'error');
     }
   };
 
@@ -78,20 +104,57 @@ export function GroupSetupPage() {
   return (
     <div className="min-h-full flex flex-col p-6 max-w-md mx-auto w-full">
       <div className="pt-8 pb-6 text-center">
-        <h1 className="text-2xl font-bold">Create your group</h1>
-        <p className="text-slate-400 text-sm mt-1">Give it a name. You'll get a code to share.</p>
+        <h1 className="text-2xl font-bold">Join or create a group</h1>
+        <p className="text-slate-400 text-sm mt-1">
+          Got a code from a friend? Or start your own group.
+        </p>
       </div>
+
+      <div className="flex bg-slate-900 border border-slate-800 rounded-xl p-1 mb-6">
+        <button
+          type="button"
+          onClick={() => setMode('join')}
+          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
+            mode === 'join' ? 'bg-signal-600 text-white' : 'text-slate-400'
+          }`}
+        >
+          I have a code
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('create')}
+          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
+            mode === 'create' ? 'bg-signal-600 text-white' : 'text-slate-400'
+          }`}
+        >
+          Start a new group
+        </button>
+      </div>
+
       <form onSubmit={submit} className="space-y-4">
-        <input
-          className="input"
-          placeholder="e.g. The Fake Kebab"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={48}
-          required
-        />
-        <button disabled={create.isPending} type="submit" className="btn-primary w-full text-lg">
-          {create.isPending ? 'Creating…' : 'Create group'}
+        {mode === 'join' ? (
+          <input
+            className="input tracking-[0.3em] uppercase text-center font-mono"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            placeholder="ABCDE"
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 5))}
+            maxLength={5}
+            required
+          />
+        ) : (
+          <input
+            className="input"
+            placeholder="e.g. The Fake Kebab"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={48}
+            required
+          />
+        )}
+        <button disabled={busy} type="submit" className="btn-primary w-full text-lg">
+          {busy ? 'Hold on…' : mode === 'join' ? 'Join group' : 'Create group'}
         </button>
       </form>
     </div>

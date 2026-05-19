@@ -53,6 +53,13 @@ export class SignalsController {
     return this.signals.getSignal(id);
   }
 
+  @Post('signals/:id/close')
+  @HttpCode(204)
+  @UseGuards(AuthGuard)
+  close(@CurrentUser() auth: AuthContext, @Param('id') id: string) {
+    return this.signals.closeSignal(auth.userId, id);
+  }
+
   @Sse('/sse/signals/:id')
   @UseGuards(SseAuthGuard)
   sseStream(@Param('id') id: string): Observable<{ data: { acceptedCount: number } }> {
