@@ -279,7 +279,7 @@ interface GameCardProps {
 
 function GameCard({ game, onTap, onToggle, menuOpen, setMenuOpen, onEditImage, onDelete }: GameCardProps) {
   return (
-    <div className="relative card hover:border-signal-600 active:scale-[0.99] transition cursor-pointer overflow-hidden" onClick={onTap}>
+    <div className="relative card hover:border-signal-600 active:scale-[0.99] transition cursor-pointer" onClick={onTap}>
       <div className="flex items-center gap-3">
         <div className="w-16 h-16 rounded-xl bg-slate-800 flex items-center justify-center overflow-hidden flex-shrink-0">
           {game.imageUrl ? (
