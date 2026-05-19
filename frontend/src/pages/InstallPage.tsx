@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { promptInstall, useInstallState } from '../lib/pwa';
+import { markSkipInstall, promptInstall, useInstallState } from '../lib/pwa';
 
 export function InstallPage() {
   const state = useInstallState();
@@ -22,7 +22,16 @@ export function InstallPage() {
 
   const handleInstall = async () => {
     const r = await promptInstall();
-    if (r === 'accepted') navigate('/onboarding', { replace: true });
+    if (r === 'accepted') {
+      // The appinstalled / display-mode listeners will redirect once the
+      // OS confirms. Don't navigate eagerly — on a silent-shortcut fallback
+      // we want the install-likely-failed UI to kick in here.
+    }
+  };
+
+  const handleUseInBrowser = () => {
+    markSkipInstall();
+    navigate('/onboarding', { replace: true });
   };
 
   return (
@@ -33,7 +42,9 @@ export function InstallPage() {
         Summon your friends to play. One tap launches the signal — they get a push notification and reply with one tap.
       </p>
 
-      {state.canPromptInstall ? (
+      {state.installLikelyFailed ? (
+        <InstallStuckCard onUseInBrowser={handleUseInBrowser} onRetry={handleInstall} canRetry={state.canPromptInstall} />
+      ) : state.canPromptInstall ? (
         <>
           <button className="btn-primary text-lg px-8 py-4" onClick={handleInstall}>
             Install the app
@@ -52,6 +63,48 @@ export function InstallPage() {
       ) : (
         <GenericInstructions />
       )}
+
+      <button onClick={handleUseInBrowser} className="text-sm text-slate-400 hover:text-slate-200 underline mt-6">
+        Skip install — use it in this browser
+      </button>
+      <p className="text-xs text-slate-600 mt-2 max-w-sm">
+        You can still get push notifications without installing. Installing just gives you a home-screen icon and a
+        fullscreen view.
+      </p>
+    </div>
+  );
+}
+
+interface InstallStuckCardProps {
+  onUseInBrowser: () => void;
+  onRetry: () => void;
+  canRetry: boolean;
+}
+
+function InstallStuckCard({ onUseInBrowser, onRetry, canRetry }: InstallStuckCardProps) {
+  return (
+    <div className="card max-w-sm text-left space-y-3 border-amber-500/50">
+      <h2 className="font-semibold text-amber-400">Looks like the install didn't take</h2>
+      <p className="text-sm text-slate-300">
+        You said yes to the install dialog, but the app isn't running in its own window yet. This usually means your
+        browser fell back to creating a home-screen <em>shortcut</em> instead of a real installed web app — often
+        because Google Play Services was busy or your device couldn't reach Google's install server.
+      </p>
+      <p className="text-sm text-slate-300">Two ways forward:</p>
+      <div className="grid grid-cols-1 gap-2">
+        {canRetry && (
+          <button onClick={onRetry} className="btn-primary">
+            Try the install again
+          </button>
+        )}
+        <button onClick={onUseInBrowser} className="btn-secondary">
+          Just use it in this browser
+        </button>
+      </div>
+      <p className="text-xs text-slate-500">
+        Push notifications work the same either way. The installed version only adds a home-screen icon and a
+        chrome-less window.
+      </p>
     </div>
   );
 }

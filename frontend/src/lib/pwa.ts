@@ -5,11 +5,55 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 }
 
+interface RelatedApp {
+  id?: string;
+  platform: string;
+  url?: string;
+}
+
+const INSTALL_ATTEMPTED_KEY = 'fks.installAttemptedAt';
+const SKIP_INSTALL_KEY = 'fks.skipInstall';
+// "Looks like install didn't take" only fires after this many ms post-accept
+// without us observing standalone mode or a related-app entry.
+const FAILED_INSTALL_GRACE_MS = 30_000;
+
 let deferredPrompt: BeforeInstallPromptEvent | null = null;
+let relatedAppsCount = 0;
+let appInstalledFired = false;
 const listeners = new Set<() => void>();
 
 function notifyAll() {
   listeners.forEach((l) => l());
+}
+
+function safeGet(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSet(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+}
+
+function safeRemove(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {}
+}
+
+async function refreshRelatedApps(): Promise<void> {
+  const nav = navigator as Navigator & { getInstalledRelatedApps?: () => Promise<RelatedApp[]> };
+  if (typeof nav.getInstalledRelatedApps !== 'function') return;
+  try {
+    const apps = await nav.getInstalledRelatedApps();
+    relatedAppsCount = apps.length;
+    notifyAll();
+  } catch {}
 }
 
 if (typeof window !== 'undefined') {
@@ -19,9 +63,14 @@ if (typeof window !== 'undefined') {
     notifyAll();
   });
   window.addEventListener('appinstalled', () => {
+    appInstalledFired = true;
     deferredPrompt = null;
+    safeRemove(INSTALL_ATTEMPTED_KEY);
+    safeRemove(SKIP_INSTALL_KEY);
+    void refreshRelatedApps();
     notifyAll();
   });
+  void refreshRelatedApps();
 }
 
 export async function promptInstall(): Promise<'accepted' | 'dismissed' | 'unavailable'> {
@@ -30,6 +79,14 @@ export async function promptInstall(): Promise<'accepted' | 'dismissed' | 'unava
     await deferredPrompt.prompt();
     const choice = await deferredPrompt.userChoice;
     deferredPrompt = null;
+    if (choice.outcome === 'accepted') {
+      safeSet(INSTALL_ATTEMPTED_KEY, String(Date.now()));
+      // Re-check the related-apps API a few seconds later; on a real
+      // WebAPK mint the entry shows up within ~5s. If it never appears
+      // we surface installLikelyFailed via the grace window below.
+      setTimeout(() => void refreshRelatedApps(), 4000);
+      setTimeout(() => void refreshRelatedApps(), 10000);
+    }
     notifyAll();
     return choice.outcome;
   } catch {
@@ -37,6 +94,16 @@ export async function promptInstall(): Promise<'accepted' | 'dismissed' | 'unava
     notifyAll();
     return 'dismissed';
   }
+}
+
+export function markSkipInstall(): void {
+  safeSet(SKIP_INSTALL_KEY, String(Date.now()));
+  notifyAll();
+}
+
+export function clearSkipInstall(): void {
+  safeRemove(SKIP_INSTALL_KEY);
+  notifyAll();
 }
 
 export function isIOS(): boolean {
@@ -94,6 +161,24 @@ export function isStandalone(): boolean {
   return false;
 }
 
+export function hasSkippedInstall(): boolean {
+  return safeGet(SKIP_INSTALL_KEY) !== null;
+}
+
+function computeInstallLikelyFailed(installed: boolean): boolean {
+  if (installed) return false;
+  const ts = safeGet(INSTALL_ATTEMPTED_KEY);
+  if (!ts) return false;
+  const age = Date.now() - Number(ts);
+  if (Number.isNaN(age) || age < FAILED_INSTALL_GRACE_MS) return false;
+  // If the appinstalled event already fired (and we're somehow not in
+  // standalone), the OS thinks it installed — treat as success.
+  if (appInstalledFired) return false;
+  // If getInstalledRelatedApps() returned an entry, OS-side install is real.
+  if (relatedAppsCount > 0) return false;
+  return true;
+}
+
 export interface InstallState {
   canPromptInstall: boolean;
   isInstalled: boolean;
@@ -101,6 +186,8 @@ export interface InstallState {
   isAndroid: boolean;
   isMacSafari: boolean;
   isFirefox: boolean;
+  installLikelyFailed: boolean;
+  hasSkippedInstall: boolean;
 }
 
 export function useInstallState(): InstallState {
@@ -111,17 +198,27 @@ export function useInstallState(): InstallState {
     const onChange = () => force((n) => n + 1);
     const queries = STANDALONE_DISPLAY_MODES.map((m) => window.matchMedia(`(display-mode: ${m})`));
     queries.forEach((q) => q.addEventListener?.('change', onChange));
+    // Re-check related apps when the tab regains focus — common path after
+    // returning from the Android install dialog.
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void refreshRelatedApps();
+    };
+    document.addEventListener('visibilitychange', onVis);
     return () => {
       listeners.delete(l);
       queries.forEach((q) => q.removeEventListener?.('change', onChange));
+      document.removeEventListener('visibilitychange', onVis);
     };
   }, []);
+  const installed = isStandalone();
   return {
     canPromptInstall: deferredPrompt !== null,
-    isInstalled: isStandalone(),
+    isInstalled: installed,
     isIOS: isIOS(),
     isAndroid: isAndroid(),
     isMacSafari: isMacSafari(),
     isFirefox: isFirefox(),
+    installLikelyFailed: computeInstallLikelyFailed(installed),
+    hasSkippedInstall: hasSkippedInstall(),
   };
 }

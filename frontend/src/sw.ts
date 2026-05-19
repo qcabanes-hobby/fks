@@ -14,6 +14,11 @@ precacheAndRoute(self.__WB_MANIFEST || []);
 self.skipWaiting();
 clientsClaim();
 
+// Explicit no-op fetch handler so install-criteria audits that look for
+// a fetch listener (older Chromium forks, some Lighthouse checks) pass
+// even though Workbox's precacheAndRoute already registers one.
+self.addEventListener('fetch', () => {});
+
 interface PushPayload {
   signalId: string;
   type?: 'signal' | 'cancel';

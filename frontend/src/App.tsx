@@ -3,7 +3,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { getActiveSignal, getToken, requestPersistentStorage, syncTokenToIdb } from './lib/auth';
 import { ensurePushSubscription } from './lib/push';
-import { isStandalone } from './lib/pwa';
+import { hasSkippedInstall, isStandalone } from './lib/pwa';
 import { useGroup } from './lib/queries';
 import { ToastProvider, useToast } from './components/Toast';
 import { InstallPage } from './pages/InstallPage';
@@ -105,11 +105,12 @@ function RootRedirect() {
   const navigate = useNavigate();
   const token = getToken();
   const standalone = isStandalone();
+  const allowBrowserMode = standalone || hasSkippedInstall();
   const groupQuery = useGroup(!!token);
 
   useEffect(() => {
     if (location.pathname !== '/' && location.pathname !== '') return;
-    if (!standalone) {
+    if (!allowBrowserMode) {
       navigate('/install', { replace: true });
       return;
     }
@@ -128,9 +129,9 @@ function RootRedirect() {
       return;
     }
     navigate('/games', { replace: true });
-  }, [location.pathname, standalone, token, groupQuery.isLoading, groupQuery.isError, groupQuery.data, navigate]);
+  }, [location.pathname, allowBrowserMode, token, groupQuery.isLoading, groupQuery.isError, groupQuery.data, navigate]);
 
-  if (!standalone) return <Navigate to="/install" replace />;
+  if (!allowBrowserMode) return <Navigate to="/install" replace />;
   if (!token) return <Navigate to="/onboarding" replace />;
   return (
     <div className="min-h-full flex items-center justify-center">
