@@ -78,7 +78,8 @@ cd /opt/fks
 ./deploy.sh
 ```
 
-`deploy.sh` does `git fetch && git reset --hard origin/main`, rebuilds images,
+`deploy.sh` does `git fetch && git reset --hard origin/main`, rebuilds the
+frontend (`npm ci && npm run build` in `frontend/`), rebuilds the api image,
 re-applies migrations, and prunes dangling images.
 
 Alternatively, configure the GitHub Actions workflow at

@@ -7,6 +7,9 @@ echo "→ Pulling latest main"
 git fetch --all
 git reset --hard origin/main
 
+echo "→ Building frontend"
+( cd frontend && npm ci && npm run build )
+
 echo "→ Building images"
 docker compose build
 
