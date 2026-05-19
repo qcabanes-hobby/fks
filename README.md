@@ -23,14 +23,12 @@ on the internal Docker network `fks_internal`.
 
 ## First-time deploy on a fresh VPS
 
-1. **Install Docker + the Docker Compose plugin, and Node 20** on the VPS.
-   Docker runs the stack; Node is needed to build the frontend before each
-   deploy (Caddy serves the static `frontend/dist`). On Debian/Ubuntu:
+1. **Install Docker + the Docker Compose plugin** on the VPS. The frontend
+   build runs inside a one-shot `web-build` container, so Node is **not**
+   required on the host. On Debian/Ubuntu:
    ```bash
    curl -fsSL https://get.docker.com | sh
    sudo apt-get install -y docker-compose-plugin
-   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-   sudo apt-get install -y nodejs
    ```
 2. **DNS + firewall**. Point an `A` record for your domain at the VPS public
    IP. Open inbound TCP **80** and **443**. Port 80 must stay open — Caddy
@@ -53,24 +51,20 @@ on the internal Docker network `fks_internal`.
    ```
    Paste the public and private keys into `VAPID_PUBLIC_KEY` and
    `VAPID_PRIVATE_KEY`.
-5. **Build the frontend** (Caddy serves the built SPA out of `frontend/dist`
-   via a read-only bind mount):
-   ```bash
-   cd frontend && npm ci && npm run build && cd ..
-   ```
-6. **Build the images**:
+5. **Build the images** (api + the one-shot frontend builder):
    ```bash
    docker compose build
    ```
-7. **Start the stack**:
+6. **Start the stack** — the `web-build` container publishes the built SPA
+   into a shared volume, Caddy then mounts that volume read-only:
    ```bash
    docker compose up -d
    ```
-8. **Apply database migrations**:
+7. **Apply database migrations**:
    ```bash
    docker compose exec api npx prisma migrate deploy
    ```
-9. **Visit** `https://<your-domain>`. Caddy will obtain the Let's Encrypt cert
+8. **Visit** `https://<your-domain>`. Caddy will obtain the Let's Encrypt cert
    on first request — the very first load can take a few seconds while ACME
    completes.
 
@@ -84,8 +78,9 @@ cd /opt/fks
 ```
 
 `deploy.sh` does `git fetch && git reset --hard origin/main`, rebuilds the
-frontend (`npm ci && npm run build` in `frontend/`), rebuilds the api image,
-re-applies migrations, and prunes dangling images.
+api and `web-build` images, runs `docker compose up -d` (which re-runs the
+frontend builder and republishes `dist/` into the shared volume), re-applies
+migrations, and prunes dangling images.
 
 Alternatively, configure the GitHub Actions workflow at
 [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml) to SSH into

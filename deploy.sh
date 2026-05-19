@@ -7,13 +7,10 @@ echo "→ Pulling latest main"
 git fetch --all
 git reset --hard origin/main
 
-echo "→ Building frontend"
-( cd frontend && npm ci && npm run build )
-
-echo "→ Building images"
+echo "→ Building images (api + web-build)"
 docker compose build
 
-echo "→ Bringing up stack"
+echo "→ Bringing up stack (web-build publishes frontend, then caddy starts)"
 docker compose up -d
 
 echo "→ Applying database migrations"
