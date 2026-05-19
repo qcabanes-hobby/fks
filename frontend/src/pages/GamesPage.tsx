@@ -15,7 +15,7 @@ import {
   useUnsubscribe,
   useUpdateGame,
 } from '../lib/queries';
-import type { Game } from '../lib/types';
+import type { Game, Member } from '../lib/types';
 
 export function GamesPage() {
   const games = useGames();
@@ -35,6 +35,7 @@ export function GamesPage() {
   const [deleteGame, setDeleteGame] = useState<Game | null>(null);
   const [editImageGame, setEditImageGame] = useState<Game | null>(null);
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
 
   useEffect(() => {
@@ -113,9 +114,22 @@ export function GamesPage() {
 
   return (
     <div className="min-h-full p-4 max-w-2xl mx-auto w-full pb-32">
-      <header className="flex items-center justify-between py-4">
-        <div>
-          <h1 className="text-2xl font-bold">{group.data?.name || 'Your group'}</h1>
+      <header className="flex items-center justify-between py-4 gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-2xl font-bold truncate">{group.data?.name || 'Your group'}</h1>
+            {group.data?.members && (
+              <button
+                type="button"
+                onClick={() => setMembersOpen(true)}
+                aria-label={`${group.data.members.length} member${group.data.members.length === 1 ? '' : 's'} — tap to view`}
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 transition flex-shrink-0"
+              >
+                <span aria-hidden>👥</span>
+                <span>{group.data.members.length}</span>
+              </button>
+            )}
+          </div>
           {group.data?.code && (
             <p className="text-xs text-slate-500 font-mono tracking-widest">CODE {group.data.code}</p>
           )}
@@ -124,7 +138,7 @@ export function GamesPage() {
           <button
             type="button"
             onClick={() => setLeaveOpen(true)}
-            className="text-sm text-slate-400 hover:text-red-400 px-2 py-1"
+            className="text-sm text-slate-400 hover:text-red-400 px-2 py-1 flex-shrink-0"
           >
             Leave
           </button>
@@ -220,6 +234,13 @@ export function GamesPage() {
         busyLabel="Leaving…"
         confirmTone="danger"
         busy={leave.isPending}
+      />
+
+      <MembersModal
+        open={membersOpen}
+        onClose={() => setMembersOpen(false)}
+        groupName={group.data?.name}
+        members={group.data?.members ?? []}
       />
 
       <EditImageModal
@@ -327,6 +348,41 @@ function GameCard({ game, onTap, onToggle, menuOpen, setMenuOpen, onEditImage, o
         </div>
       )}
     </div>
+  );
+}
+
+interface MembersModalProps {
+  open: boolean;
+  onClose: () => void;
+  groupName?: string;
+  members: Member[];
+}
+
+function MembersModal({ open, onClose, groupName, members }: MembersModalProps) {
+  const sorted = [...members].sort((a, b) => a.joinedAt.localeCompare(b.joinedAt));
+  const fmt = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch {
+      return iso;
+    }
+  };
+  return (
+    <Modal open={open} onClose={onClose} title={`Members${groupName ? ` — ${groupName}` : ''} (${members.length})`}>
+      <ul className="divide-y divide-slate-800 -mx-2">
+        {sorted.map((m) => (
+          <li key={m.id} className="flex items-center gap-3 px-2 py-3">
+            <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center font-semibold text-slate-200 flex-shrink-0">
+              {m.username.slice(0, 1).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="font-medium truncate">{m.username}</div>
+              <div className="text-xs text-slate-500">Joined {fmt(m.joinedAt)}</div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Modal>
   );
 }
 

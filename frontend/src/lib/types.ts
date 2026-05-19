@@ -18,8 +18,12 @@ export interface Game {
   subscriberCount?: number;
 }
 
+export interface Member extends User {
+  joinedAt: string;
+}
+
 export interface GroupWithMembers extends Group {
-  members: User[];
+  members: Member[];
   games: Game[];
 }
 
