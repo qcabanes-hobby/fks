@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <!-- Bat-Signal style background: deep night fading into a fiery orange glow -->
+    <radialGradient id="bg" cx="50%" cy="55%" r="65%">
+      <stop offset="0%" stop-color="#fb923c"/>
+      <stop offset="55%" stop-color="#ea580c"/>
+      <stop offset="100%" stop-color="#7c2d12"/>
+    </radialGradient>
+    <!-- Meat shading: brown gradient down the kebab stack -->
+    <linearGradient id="meat" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="20%" stop-color="#d97706"/>
+      <stop offset="60%" stop-color="#92400e"/>
+      <stop offset="100%" stop-color="#451a03"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded-square background -->
+  <rect width="512" height="512" rx="96" ry="96" fill="url(#bg)"/>
+
+  <!-- Bat-Signal beam ring -->
+  <circle cx="256" cy="256" r="186" fill="none" stroke="#0f172a" stroke-opacity="0.55" stroke-width="20"/>
+  <circle cx="256" cy="256" r="186" fill="none" stroke="#fff7ed" stroke-opacity="0.18" stroke-width="3"/>
+
+  <!-- Vertical skewer / spit -->
+  <rect x="250" y="78"  width="12" height="22" rx="3" fill="#1f2937"/>   <!-- top finial / hook -->
+  <rect x="252" y="100" width="8"  height="340" fill="#475569"/>          <!-- skewer rod -->
+  <rect x="248" y="438" width="16" height="14"  fill="#1f2937"/>          <!-- bottom cap -->
+
+  <!-- Döner stack — wider at the top, tapering to a cone at the bottom -->
+  <g>
+    <!-- Outer silhouette of the meat stack -->
+    <path d="
+        M 168 130
+        Q 256 100 344 130
+        L 348 200
+        Q 256 215 164 200
+        L 164 240
+        Q 256 252 348 240
+        L 344 290
+        Q 256 305 168 290
+        L 174 340
+        Q 256 350 338 340
+        L 320 400
+        Q 256 410 192 400
+        L 256 460
+        Z" fill="url(#meat)"/>
+    <!-- Subtle shading lines between layers -->
+    <path d="M 168 200 Q 256 213 344 200" fill="none" stroke="#000" stroke-opacity="0.25" stroke-width="3"/>
+    <path d="M 164 240 Q 256 252 348 240" fill="none" stroke="#fff" stroke-opacity="0.25" stroke-width="2"/>
+    <path d="M 168 290 Q 256 303 344 290" fill="none" stroke="#000" stroke-opacity="0.25" stroke-width="3"/>
+    <path d="M 174 340 Q 256 350 338 340" fill="none" stroke="#fff" stroke-opacity="0.2" stroke-width="2"/>
+    <!-- Glaze highlight running down the left side -->
+    <path d="M 182 138 Q 200 230 210 350 L 220 400" fill="none" stroke="#fde68a" stroke-opacity="0.55" stroke-width="6" stroke-linecap="round"/>
+  </g>
+</svg>

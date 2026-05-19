@@ -15,6 +15,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
       },
       manifest: {
+        id: '/',
+        scope: '/',
         name: 'Fake Kebab Signal',
         short_name: 'FKS',
         description: 'Bat-Signal-style push notifications for your friend group',
@@ -35,19 +37,19 @@ export default defineConfig({
             purpose: 'any',
           },
           {
-            src: '/icons/icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
-          {
             src: '/icons/icon-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any',
           },
           {
-            src: '/icons/icon-512.png',
+            src: '/icons/icon-maskable-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: '/icons/icon-maskable-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
