@@ -23,9 +23,9 @@ on the internal Docker network `fks_internal`.
 
 ## First-time deploy on a fresh VPS
 
-1. **Install Docker + the Docker Compose plugin** on the VPS. The frontend
-   build runs inside a one-shot `web-build` container, so Node is **not**
-   required on the host. On Debian/Ubuntu:
+1. **Install Docker + the Docker Compose plugin** on the VPS. Images are
+   built in GitHub Actions and pulled from GHCR — the VPS never builds
+   anything, so neither Node nor a compiler is needed. On Debian/Ubuntu:
    ```bash
    curl -fsSL https://get.docker.com | sh
    sudo apt-get install -y docker-compose-plugin
@@ -51,13 +51,18 @@ on the internal Docker network `fks_internal`.
    ```
    Paste the public and private keys into `VAPID_PUBLIC_KEY` and
    `VAPID_PRIVATE_KEY`.
-5. **Build the images** (api + the one-shot frontend builder):
+5. **Make sure images exist in GHCR.** Push to `main` once so the Deploy
+   workflow builds and publishes `ghcr.io/<owner>/fks-api:latest` and
+   `ghcr.io/<owner>/fks-web-build:latest`. If the GitHub repo is **private**,
+   make those two packages public in GHCR settings *or* log the VPS in:
    ```bash
-   docker compose build
+   # On the VPS, with a PAT (classic) that has `read:packages`:
+   echo "$GHCR_PAT" | docker login ghcr.io -u <github-username> --password-stdin
    ```
-6. **Start the stack** — the `web-build` container publishes the built SPA
-   into a shared volume, Caddy then mounts that volume read-only:
+6. **Pull and start the stack** — `web-build` publishes the prebuilt SPA
+   into a shared volume, then Caddy mounts that volume read-only:
    ```bash
+   docker compose pull api web-build
    docker compose up -d
    ```
 7. **Apply database migrations**:
@@ -77,10 +82,10 @@ cd /opt/fks
 ./deploy.sh
 ```
 
-`deploy.sh` does `git fetch && git reset --hard origin/main`, rebuilds the
-api and `web-build` images, runs `docker compose up -d` (which re-runs the
-frontend builder and republishes `dist/` into the shared volume), re-applies
-migrations, and prunes dangling images.
+`deploy.sh` does `git fetch && git reset --hard origin/main`, pulls the
+latest `api` and `web-build` images from GHCR, runs `docker compose up -d`
+(the `web-build` container re-runs and republishes `dist/` into the shared
+volume), re-applies migrations, and prunes dangling images.
 
 Alternatively, configure the GitHub Actions workflow at
 [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml) to SSH into

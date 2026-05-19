@@ -1,19 +1,21 @@
-# Auto-deploy on push to main.
+# Build images in GitHub Actions, push to GHCR, then SSH into the VPS to
+# pull and restart. The VPS never builds anything — it only runs `docker
+# compose pull && up -d`, which works on a tiny VPS.
 #
-# Requires the following GitHub Secrets to be configured on the repo:
+# Required GitHub Secrets (for the deploy job):
 #   SSH_HOST  — VPS hostname or IP
 #   SSH_USER  — login user (must own /opt/fks and be in the docker group)
 #   SSH_KEY   — private OpenSSH key whose public half is in that user's
 #               ~/.ssh/authorized_keys on the VPS
 #
-# Until all three secrets are set, the job is skipped — see the `if:`
-# guard on the job below. There is nothing else to "enable"; just add
-# the secrets and the next push to main will run.
+# Without those, only the build job runs (which is still useful: it
+# publishes images you can pull manually from the VPS).
 #
-# On the VPS, before this workflow can succeed, you must have:
-#   1. Cloned the repo into /opt/fks (so deploy.sh exists there).
-#   2. Created /opt/fks/.env from .env.example.
-#   3. Added the workflow's public key to ~/.ssh/authorized_keys for SSH_USER.
+# GHCR auth: this workflow uses the built-in GITHUB_TOKEN to push to
+# `ghcr.io/<owner>/fks-api` and `ghcr.io/<owner>/fks-web-build`.
+# - If the repo is public, the images are public too — no VPS login needed.
+# - If the repo is private, you must `docker login ghcr.io` on the VPS once
+#   with a PAT that has `read:packages`. See the README.
 
 name: Deploy
 
@@ -22,10 +24,54 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  REGISTRY: ghcr.io
+  OWNER: ${{ github.repository_owner }}
+
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    if: ${{ vars.DEPLOY_ENABLED == 'true' || secrets.SSH_HOST != '' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push api image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/fks-api:latest
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/fks-api:${{ github.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      - name: Build and push web-build image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/fks-web-build:latest
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/fks-web-build:${{ github.sha }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
     steps:
       - name: SSH into VPS and run deploy.sh
         uses: appleboy/ssh-action@v1.0.3

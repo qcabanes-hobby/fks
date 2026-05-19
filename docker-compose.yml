@@ -1,5 +1,6 @@
 services:
   web-build:
+    image: ${WEB_BUILD_IMAGE:-ghcr.io/qcabanes-hobby/fks-web-build:latest}
     build: ./frontend
     restart: "no"
     volumes:
@@ -29,6 +30,7 @@ services:
       - fks_internal
 
   api:
+    image: ${API_IMAGE:-ghcr.io/qcabanes-hobby/fks-api:latest}
     build: ./backend
     restart: unless-stopped
     environment:
