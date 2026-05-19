@@ -57,17 +57,21 @@ export default defineConfig({
     }),
   ],
   server: {
+    host: true,
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: process.env.API_PROXY_TARGET || 'http://localhost:3000',
         changeOrigin: true,
       },
       '/sse': {
-        target: 'http://localhost:3000',
+        target: process.env.API_PROXY_TARGET || 'http://localhost:3000',
         changeOrigin: true,
         ws: false,
       },
+    },
+    watch: {
+      usePolling: process.env.CHOKIDAR_USEPOLLING === 'true',
     },
   },
 });

@@ -12,7 +12,7 @@ in. Works on iOS (16.4+, installed as PWA), Android, and desktop.
 
 See [PLAN.md](./PLAN.md) for the full design rationale. In short:
 
-- **Frontend**: React + Vite + `vite-plugin-pwa`, Tailwind + shadcn/ui, TanStack Query.
+- **Frontend**: React + Vite + `vite-plugin-pwa`, Tailwind CSS, TanStack Query.
 - **Backend**: NestJS + Prisma + `web-push`, Server-Sent Events for the live count.
 - **Database**: PostgreSQL 16 (internal to the Docker network).
 - **Reverse proxy / TLS**: Caddy 2 with automatic Let's Encrypt.
@@ -106,14 +106,94 @@ Schedule it nightly with `crontab -e`:
 
 ## Local development
 
-See each subproject's README for the dev loop:
+There are two ways to run FKS locally. Pick the one that suits your machine.
 
-- `frontend/` — `npm run dev` runs Vite on `localhost:5173`.
-- `backend/` — `npm run start:dev` runs Nest in watch mode.
+### Option A — Docker dev stack (recommended, zero local installs)
+
+Runs Postgres, the NestJS API in `start:dev` watch mode, and the Vite dev
+server with HMR — all in containers, all hot-reloading. The only thing you
+need installed locally is Docker.
+
+```bash
+# 1. (One time) Generate VAPID keys and put them in .env.
+cp .env.example .env
+docker run --rm node:20-alpine npx -y web-push generate-vapid-keys
+# Paste the two values into VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY in .env.
+# POSTGRES_PASSWORD falls back to "fksdev" in dev if you leave it blank.
+
+# 2. Start the stack.
+docker compose -f docker-compose.dev.yml up
+```
+
+URLs once it's up:
+
+- **http://localhost:5173** — Vite dev server (the app you actually use)
+- **http://localhost:3000** — NestJS API (Vite proxies `/api` and `/sse` here)
+- **localhost:5432** — Postgres (connect with TablePlus / `psql` / etc.)
+
+First start takes 1–3 min (`npm install` + Prisma generate inside both
+containers). Subsequent starts are fast — `node_modules` lives in named
+volumes (`api_node_modules`, `web_node_modules`), not the bind mount.
+
+Useful commands:
+
+```bash
+# Tail logs of one service
+docker compose -f docker-compose.dev.yml logs -f api
+
+# Shell into a container
+docker compose -f docker-compose.dev.yml exec api sh
+
+# Author a new migration after editing backend/prisma/schema.prisma
+docker compose -f docker-compose.dev.yml exec api npx prisma migrate dev --name your_change
+
+# Wipe everything (including the dev DB!) and start fresh
+docker compose -f docker-compose.dev.yml down -v
+```
+
+Notes:
+
+- The dev stack does NOT run Caddy or terminate TLS — it's plain HTTP on
+  `localhost`. The PWA's service worker will still register because browsers
+  treat `localhost` as a secure context. Push notifications work end-to-end
+  locally too, *but* iOS requires the installed-PWA gate, so iOS-specific
+  testing has to happen on a phone hitting the deployed HTTPS site.
+- File watching uses polling (`CHOKIDAR_USEPOLLING=true`) because bind-mount
+  inotify is unreliable on macOS and Windows. Slightly higher CPU; reliable.
+- The dev DB volume is `db_data_dev` (separate from the prod `db_data`), so
+  you can't accidentally wipe a prod-like dataset by toying with dev.
+
+### Option B — Host-native (everything runs on your machine)
+
+Faster file watching, slightly more setup. Requires Node 20 and a running
+Postgres.
+
+```bash
+# Postgres only, in Docker — easiest:
+docker compose -f docker-compose.dev.yml up db
+
+# In one terminal:
+cd backend
+npm install
+npx prisma migrate deploy
+npm run start:dev
+
+# In another terminal:
+cd frontend
+npm install
+npm run dev
+```
+
+Open **http://localhost:5173**. Vite's proxy sends `/api` and `/sse` to
+`http://localhost:3000` by default (override with `API_PROXY_TARGET` if you
+run the API elsewhere).
+
+### Production-build vs dev-server
 
 In production the built SPA at `frontend/dist` is bind-mounted into Caddy
 read-only. Locally you do **not** need to rebuild the frontend to iterate —
-just use `npm run dev`. You only rebuild when deploying.
+just use `npm run dev` (or the dev stack above). You only rebuild when
+deploying.
 
 ## Security
 

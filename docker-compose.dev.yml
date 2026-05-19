@@ -1,0 +1,77 @@
+# Dev stack — hot reload for both backend (NestJS watch) and frontend (Vite HMR).
+# Standalone file, not merged with docker-compose.yml.
+# Usage: docker compose -f docker-compose.dev.yml up
+# URLs:  frontend http://localhost:5173 — api http://localhost:3000 — db on :5432
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: fks
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fksdev}
+      POSTGRES_DB: fks
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fks -d fks"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks: [fks_dev]
+
+  api:
+    image: node:20-alpine
+    working_dir: /app
+    environment:
+      DATABASE_URL: postgres://fks:${POSTGRES_PASSWORD:-fksdev}@db:5432/fks
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:dev@example.com}
+      NODE_ENV: development
+      PORT: "3000"
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/app
+      - api_node_modules:/app/node_modules
+    command: >
+      sh -c "npm install &&
+             npx prisma generate &&
+             npx prisma migrate deploy &&
+             npm run start:dev"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [fks_dev]
+
+  web:
+    image: node:20-alpine
+    working_dir: /app
+    environment:
+      API_PROXY_TARGET: http://api:3000
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - web_node_modules:/app/node_modules
+    command: >
+      sh -c "npm install &&
+             npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks: [fks_dev]
+
+volumes:
+  db_data_dev:
+  api_node_modules:
+  web_node_modules:
+
+networks:
+  fks_dev:
+    driver: bridge
