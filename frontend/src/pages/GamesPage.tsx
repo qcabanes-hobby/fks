@@ -13,6 +13,7 @@ import {
   useSubscribe,
   useTriggerSignal,
   useUnsubscribe,
+  useUpdateGame,
 } from '../lib/queries';
 import type { Game } from '../lib/types';
 
@@ -24,6 +25,7 @@ export function GamesPage() {
   const subscribe = useSubscribe();
   const unsubscribe = useUnsubscribe();
   const create = useCreateGame();
+  const update = useUpdateGame();
   const del = useDeleteGame();
   const trigger = useTriggerSignal();
   const leave = useLeaveGroup();
@@ -31,6 +33,7 @@ export function GamesPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [confirmGame, setConfirmGame] = useState<Game | null>(null);
   const [deleteGame, setDeleteGame] = useState<Game | null>(null);
+  const [editImageGame, setEditImageGame] = useState<Game | null>(null);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
 
@@ -88,6 +91,16 @@ export function GamesPage() {
     }
   };
 
+  const onSaveImage = async (imageUrl: string) => {
+    if (!editImageGame) return;
+    try {
+      await update.mutateAsync({ id: editImageGame.id, patch: { imageUrl } });
+      setEditImageGame(null);
+    } catch (err) {
+      toast.show((err as Error).message || 'Could not update image', 'error');
+    }
+  };
+
   const onConfirmLeave = async () => {
     try {
       await leave.mutateAsync();
@@ -130,6 +143,10 @@ export function GamesPage() {
               onToggle={() => onToggleSubscribe(g)}
               menuOpen={menuOpen === g.id}
               setMenuOpen={(o) => setMenuOpen(o ? g.id : null)}
+              onEditImage={() => {
+                setMenuOpen(null);
+                setEditImageGame(g);
+              }}
               onDelete={() => {
                 setMenuOpen(null);
                 setDeleteGame(g);
@@ -205,6 +222,13 @@ export function GamesPage() {
         busy={leave.isPending}
       />
 
+      <EditImageModal
+        game={editImageGame}
+        busy={update.isPending}
+        onClose={() => setEditImageGame(null)}
+        onSubmit={onSaveImage}
+      />
+
       <AddGameModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
@@ -228,10 +252,11 @@ interface GameCardProps {
   onToggle: () => void;
   menuOpen: boolean;
   setMenuOpen: (o: boolean) => void;
+  onEditImage: () => void;
   onDelete: () => void;
 }
 
-function GameCard({ game, onTap, onToggle, menuOpen, setMenuOpen, onDelete }: GameCardProps) {
+function GameCard({ game, onTap, onToggle, menuOpen, setMenuOpen, onEditImage, onDelete }: GameCardProps) {
   return (
     <div className="relative card hover:border-signal-600 active:scale-[0.99] transition cursor-pointer overflow-hidden" onClick={onTap}>
       <div className="flex items-center gap-3">
@@ -282,20 +307,80 @@ function GameCard({ game, onTap, onToggle, menuOpen, setMenuOpen, onDelete }: Ga
       </div>
       {menuOpen && (
         <div
-          className="absolute top-2 right-2 mt-10 bg-slate-800 border border-slate-700 rounded-lg overflow-hidden shadow-xl z-10"
+          className="absolute top-2 right-2 mt-10 bg-slate-800 border border-slate-700 rounded-lg overflow-hidden shadow-xl z-10 min-w-[10rem]"
           onMouseDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
           <button
+            onClick={onEditImage}
+            className="block w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-700"
+          >
+            Update image
+          </button>
+          <button
             onClick={onDelete}
-            className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-slate-700"
+            className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-slate-700 border-t border-slate-700"
           >
             Delete
           </button>
         </div>
       )}
     </div>
+  );
+}
+
+interface EditImageModalProps {
+  game: Game | null;
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (imageUrl: string) => Promise<void>;
+}
+
+function EditImageModal({ game, busy, onClose, onSubmit }: EditImageModalProps) {
+  const [imageUrl, setImageUrl] = useState('');
+
+  useEffect(() => {
+    setImageUrl(game?.imageUrl ?? '');
+  }, [game]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await onSubmit(imageUrl.trim());
+  };
+
+  return (
+    <Modal open={!!game} onClose={onClose} title={game ? `Update image — ${game.name}` : 'Update image'}>
+      <form onSubmit={submit} className="space-y-4">
+        <input
+          className="input"
+          placeholder="Image URL (leave blank to clear)"
+          value={imageUrl}
+          onChange={(e) => setImageUrl(e.target.value)}
+          autoFocus
+        />
+        {imageUrl && (
+          <div className="rounded-xl bg-slate-800 overflow-hidden border border-slate-700 aspect-video flex items-center justify-center">
+            <img
+              src={imageUrl}
+              alt=""
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <button type="button" onClick={onClose} className="btn-secondary">
+            Cancel
+          </button>
+          <button type="submit" disabled={busy} className="btn-primary">
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

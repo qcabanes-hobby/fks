@@ -125,6 +125,18 @@ export function useCreateGame() {
   });
 }
 
+export function useUpdateGame() {
+  const qc = useQueryClient();
+  return useMutation<Game, Error, { id: string; patch: { name?: string; imageUrl?: string } }>({
+    mutationFn: ({ id, patch }) =>
+      apiRequest<Game>(`/api/games/${id}`, { method: 'PATCH', body: patch }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.games });
+      qc.invalidateQueries({ queryKey: qk.group });
+    },
+  });
+}
+
 export function useDeleteGame() {
   const qc = useQueryClient();
   return useMutation<void, Error, string>({
