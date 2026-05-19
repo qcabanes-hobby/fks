@@ -1,4 +1,4 @@
-FROM node:20-bookworm AS builder
+FROM node:20-bullseye AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
@@ -13,7 +13,7 @@ RUN npm run build
 
 RUN npm prune --omit=dev
 
-FROM node:20-bookworm AS runner
+FROM node:20-bullseye AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
