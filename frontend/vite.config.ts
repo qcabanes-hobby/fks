@@ -23,6 +23,10 @@ export default defineConfig({
         background_color: '#0f172a',
         theme_color: '#ea580c',
         orientation: 'portrait',
+        handle_links: 'preferred',
+        launch_handler: {
+          client_mode: 'navigate-existing',
+        },
         icons: [
           {
             src: '/icons/icon-192.png',
