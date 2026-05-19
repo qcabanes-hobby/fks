@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Env files — never commit secrets
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local docker volumes if mounted into the repo by mistake
+caddy_data/
+caddy_config/
+db_data/
+
+# Coverage / test artifacts
+coverage/
+.nyc_output/
+
+# Backups (if someone runs backup.sh with BACKUP_DIR=.)
+fks-*.sql.gz

@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String             @id @default(cuid())
+  username      String
+  createdAt     DateTime           @default(now())
+  memberships   GroupMember[]
+  devices       Device[]
+  subscriptions GameSubscription[]
+  signals       Signal[]
+  responses     SignalResponse[]
+}
+
+model Device {
+  id           String   @id @default(cuid())
+  userId       String
+  authToken    String   @unique
+  pushEndpoint String?
+  pushP256dh   String?
+  pushAuth     String?
+  userAgent    String?
+  lastSeenAt   DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Group {
+  id        String        @id @default(cuid())
+  code      String        @unique
+  name      String
+  createdAt DateTime      @default(now())
+  members   GroupMember[]
+  games     Game[]
+}
+
+model GroupMember {
+  userId   String
+  groupId  String
+  joinedAt DateTime @default(now())
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group    Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([userId, groupId])
+  @@index([groupId])
+}
+
+model Game {
+  id            String             @id @default(cuid())
+  groupId       String
+  name          String
+  imageUrl      String?
+  createdAt     DateTime           @default(now())
+  group         Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  subscriptions GameSubscription[]
+  signals       Signal[]
+
+  @@index([groupId])
+}
+
+model GameSubscription {
+  userId String
+  gameId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@id([userId, gameId])
+  @@index([gameId])
+}
+
+model Signal {
+  id            String           @id @default(cuid())
+  gameId        String
+  triggeredById String
+  triggeredAt   DateTime         @default(now())
+  game          Game             @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  triggeredBy   User             @relation(fields: [triggeredById], references: [id], onDelete: Cascade)
+  responses     SignalResponse[]
+
+  @@index([gameId])
+  @@index([triggeredById])
+}
+
+model SignalResponse {
+  signalId    String
+  userId      String
+  response    String
+  respondedAt DateTime @default(now())
+  signal      Signal   @relation(fields: [signalId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([signalId, userId])
+  @@index([userId])
+}

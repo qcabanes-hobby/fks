@@ -1,0 +1,39 @@
+# Auto-deploy on push to main.
+#
+# Requires the following GitHub Secrets to be configured on the repo:
+#   SSH_HOST  — VPS hostname or IP
+#   SSH_USER  — login user (must own /opt/fks and be in the docker group)
+#   SSH_KEY   — private OpenSSH key whose public half is in that user's
+#               ~/.ssh/authorized_keys on the VPS
+#
+# Until all three secrets are set, the job is skipped — see the `if:`
+# guard on the job below. There is nothing else to "enable"; just add
+# the secrets and the next push to main will run.
+#
+# On the VPS, before this workflow can succeed, you must have:
+#   1. Cloned the repo into /opt/fks (so deploy.sh exists there).
+#   2. Created /opt/fks/.env from .env.example.
+#   3. Added the workflow's public key to ~/.ssh/authorized_keys for SSH_USER.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ vars.DEPLOY_ENABLED == 'true' || secrets.SSH_HOST != '' }}
+    steps:
+      - name: SSH into VPS and run deploy.sh
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /opt/fks
+            ./deploy.sh
