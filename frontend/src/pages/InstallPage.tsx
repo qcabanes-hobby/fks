@@ -109,30 +109,59 @@ function MacSafariInstructions() {
 }
 
 function FirefoxInstructions() {
+  const onAndroid = useInstallState().isAndroid;
+  if (onAndroid) {
+    return (
+      <div className="card max-w-sm text-left space-y-3">
+        <h2 className="font-semibold text-signal-400">Install on Firefox for Android</h2>
+        <ol className="list-decimal list-inside space-y-2 text-slate-300 text-sm">
+          <li>
+            Tap the <span className="font-semibold">⋮</span> menu at the bottom-right of Firefox.
+          </li>
+          <li>
+            Choose <span className="font-semibold">"Add to Home screen"</span> (or{' '}
+            <span className="font-semibold">"Install"</span> on newer versions).
+          </li>
+          <li>
+            Confirm by tapping <span className="font-semibold">Add</span>.
+          </li>
+          <li>Launch Fake Kebab Signal from your home screen.</li>
+        </ol>
+        <p className="text-xs text-slate-500">
+          Firefox for Android installs web apps as standalone shortcuts. Push notifications work, but if you run
+          into issues, Chrome / Edge / Samsung Internet are the most thoroughly tested.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="card max-w-sm text-left space-y-3">
-      <h2 className="font-semibold text-signal-400">Firefox doesn't install web apps</h2>
+      <h2 className="font-semibold text-signal-400">Desktop Firefox doesn't install web apps</h2>
       <p className="text-sm text-slate-300">
-        Mozilla hasn't shipped web-app install support in Firefox. To install Fake Kebab Signal, open this page in
-        one of these browsers and you'll get a one-tap install button:
+        Mozilla hasn't shipped web-app install support in desktop Firefox. To install Fake Kebab Signal, open this
+        page in one of these browsers:
       </p>
       <ul className="list-disc list-inside space-y-1 text-slate-300 text-sm">
         <li>
           <span className="font-semibold">macOS / Windows / Linux</span>: Chrome, Edge, Brave, Arc, Vivaldi, or
-          Opera.
+          Opera — they'll show a one-tap install button.
         </li>
         <li>
-          <span className="font-semibold">Android</span>: Chrome, Edge, Samsung Internet, Brave, or any other
-          Chromium-based browser.
+          <span className="font-semibold">macOS</span>: Safari 17+ also works (File menu → Add to Dock).
         </li>
         <li>
-          <span className="font-semibold">iPhone / iPad</span>: Safari (Firefox for iOS uses WebKit but still can't
-          install).
+          <span className="font-semibold">iPhone / iPad</span>: open in Safari and use Share → Add to Home Screen
+          (Firefox for iOS uses WebKit and can't install either).
+        </li>
+        <li>
+          <span className="font-semibold">Android</span>: Firefox for Android <em>does</em> support install — open
+          this page in Firefox on your phone instead.
         </li>
       </ul>
       <p className="text-xs text-slate-500">
-        Advanced: the third-party "PWAsForFirefox" extension can install Firefox web apps, but it requires a
-        system-level helper and isn't recommended for end users.
+        Advanced: the third-party "PWAsForFirefox" extension can install Firefox web apps on desktop, but it
+        requires a system-level helper and isn't recommended for end users.
       </p>
     </div>
   );
