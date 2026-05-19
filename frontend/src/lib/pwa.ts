@@ -55,6 +55,27 @@ export function isAndroid(): boolean {
   return /Android/i.test(navigator.userAgent || '');
 }
 
+export function isFirefox(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  // FxiOS is Firefox on iOS (WebKit under the hood, not Gecko).
+  return /Firefox\//i.test(ua) || /FxiOS\//i.test(ua);
+}
+
+function isSafariEngine(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/Chrome\/|CriOS\/|EdgiOS\/|EdgA\/|Edg\/|FxiOS\/|OPR\/|OPiOS\/|Brave\//i.test(ua)) {
+    return false;
+  }
+  return /Safari\//i.test(ua);
+}
+
+// Desktop Safari on macOS (Sonoma+ / Safari 17+ can "Add to Dock").
+export function isMacSafari(): boolean {
+  return isSafariEngine() && !isIOS();
+}
+
 export function isStandalone(): boolean {
   if (typeof window === 'undefined') return false;
   const mq = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
@@ -67,6 +88,8 @@ export interface InstallState {
   isInstalled: boolean;
   isIOS: boolean;
   isAndroid: boolean;
+  isMacSafari: boolean;
+  isFirefox: boolean;
 }
 
 export function useInstallState(): InstallState {
@@ -87,5 +110,7 @@ export function useInstallState(): InstallState {
     isInstalled: isStandalone(),
     isIOS: isIOS(),
     isAndroid: isAndroid(),
+    isMacSafari: isMacSafari(),
+    isFirefox: isFirefox(),
   };
 }
