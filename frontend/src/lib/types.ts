@@ -35,6 +35,7 @@ export interface Signal {
   triggeredById: string;
   triggeredByUsername?: string;
   triggeredAt: string;
+  closedAt?: string | null;
   acceptedCount: number;
   rejectedCount?: number;
   totalSubscribers?: number;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useRespondToSignal, useSignal } from '../lib/queries';
 import { useToast } from '../components/Toast';
@@ -8,8 +8,16 @@ export function SignalRespondPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const respond = useRespondToSignal();
-  const signal = useSignal(id);
   const [responded, setResponded] = useState<'accept' | 'reject' | null>(null);
+  const signal = useSignal(id, { refetchInterval: responded ? false : 4000 });
+
+  useEffect(() => {
+    if (responded) return;
+    if (signal.data?.closedAt) {
+      toast.show('Signal was closed', 'info');
+      navigate('/games', { replace: true });
+    }
+  }, [signal.data?.closedAt, responded, navigate, toast]);
 
   const submit = async (response: 'accept' | 'reject') => {
     if (!id) return;
@@ -17,7 +25,13 @@ export function SignalRespondPage() {
       await respond.mutateAsync({ signalId: id, response });
       setResponded(response);
     } catch (err) {
-      toast.show((err as Error).message || 'Could not respond', 'error');
+      const msg = (err as Error).message || 'Could not respond';
+      if (/closed/i.test(msg)) {
+        toast.show('Signal was closed', 'info');
+        navigate('/games', { replace: true });
+        return;
+      }
+      toast.show(msg, 'error');
     }
   };
 
