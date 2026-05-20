@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { EnableNotificationsBanner } from '../components/EnableNotificationsBanner';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
 import { getActiveSignal } from '../lib/auth';
@@ -144,6 +145,8 @@ export function GamesPage() {
           </button>
         )}
       </header>
+
+      <EnableNotificationsBanner enabled={!!group.data?.id} />
 
       {games.isLoading ? (
         <p className="text-slate-500">Loading games…</p>

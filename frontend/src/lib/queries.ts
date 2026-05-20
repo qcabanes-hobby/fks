@@ -218,6 +218,15 @@ export async function reportSignalDelivered(signalId: string): Promise<void> {
   } catch {}
 }
 
+export function usePushStatus(enabled: boolean) {
+  return useQuery<{ subscribed: boolean }>({
+    queryKey: ['push', 'status'],
+    queryFn: () => apiRequest<{ subscribed: boolean }>('/api/push/status'),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
 export function useSignal(signalId: string | undefined, options?: { refetchInterval?: number | false }) {
   return useQuery<Signal>({
     queryKey: signalId ? qk.signal(signalId) : ['signal', 'none'],
