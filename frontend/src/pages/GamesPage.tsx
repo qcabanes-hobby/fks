@@ -153,7 +153,17 @@ export function GamesPage() {
             <GameCard
               key={g.id}
               game={g}
-              onTap={() => setConfirmGame(g)}
+              onTap={() => {
+                if (!g.subscribed) {
+                  toast.show('Subscribe to this game before sending a signal', 'info');
+                  return;
+                }
+                if ((g.subscriberCount ?? 0) < 2) {
+                  toast.show('Need at least one other subscriber to send a signal', 'info');
+                  return;
+                }
+                setConfirmGame(g);
+              }}
               onToggle={() => onToggleSubscribe(g)}
               menuOpen={menuOpen === g.id}
               setMenuOpen={(o) => setMenuOpen(o ? g.id : null)}
@@ -278,8 +288,19 @@ interface GameCardProps {
 }
 
 function GameCard({ game, onTap, onToggle, menuOpen, setMenuOpen, onEditImage, onDelete }: GameCardProps) {
+  const canSignal = !!game.subscribed && (game.subscriberCount ?? 0) >= 2;
+  const subtitle = !game.subscribed
+    ? 'Subscribe to send a signal'
+    : (game.subscriberCount ?? 0) < 2
+    ? 'Needs one more subscriber'
+    : 'Tap to send signal';
   return (
-    <div className="relative card hover:border-signal-600 active:scale-[0.99] transition cursor-pointer" onClick={onTap}>
+    <div
+      className={`relative card transition cursor-pointer ${
+        canSignal ? 'hover:border-signal-600 active:scale-[0.99]' : 'opacity-70'
+      }`}
+      onClick={onTap}
+    >
       <div className="flex items-center gap-3">
         <div className="w-16 h-16 rounded-xl bg-slate-800 flex items-center justify-center overflow-hidden flex-shrink-0">
           {game.imageUrl ? (
@@ -292,7 +313,7 @@ function GameCard({ game, onTap, onToggle, menuOpen, setMenuOpen, onEditImage, o
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <div className="font-semibold truncate">{game.name}</div>
-              <div className="text-xs text-slate-500">Tap to send signal</div>
+              <div className="text-xs text-slate-500">{subtitle}</div>
             </div>
             <button
               type="button"

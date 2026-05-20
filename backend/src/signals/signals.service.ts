@@ -55,6 +55,20 @@ export class SignalsService {
       throw new NotFoundException('Triggerer not found');
     }
 
+    const ownSubscription = await this.prisma.gameSubscription.findUnique({
+      where: { userId_gameId: { userId, gameId } },
+    });
+    if (!ownSubscription) {
+      throw new BadRequestException('Subscribe to this game before sending a signal');
+    }
+
+    const otherSubscriberCount = await this.prisma.gameSubscription.count({
+      where: { gameId, userId: { not: userId } },
+    });
+    if (otherSubscriberCount < 1) {
+      throw new BadRequestException('Need at least one other subscriber to send a signal');
+    }
+
     const signal = await this.prisma.signal.create({
       data: {
         gameId,

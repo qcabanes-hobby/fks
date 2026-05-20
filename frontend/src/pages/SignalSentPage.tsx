@@ -105,7 +105,7 @@ export function SignalSentPage() {
               <div className="text-slate-500 text-xs mt-1">out</div>
             </div>
           </div>
-          {typeof totalSubscribers === 'number' && totalSubscribers > 0 && (
+          {typeof totalSubscribers === 'number' && (
             <div className="text-slate-500 text-xs mt-3">{totalSubscribers} notified</div>
           )}
         </div>
@@ -128,7 +128,7 @@ export function SignalSentPage() {
       <div className="card max-w-xs w-full">
         <div className="text-5xl font-bold text-signal-400">
           {count}
-          {typeof totalSubscribers === 'number' && totalSubscribers > 0 && (
+          {typeof totalSubscribers === 'number' && (
             <span className="text-2xl text-slate-500 font-semibold"> / {totalSubscribers}</span>
           )}
         </div>
