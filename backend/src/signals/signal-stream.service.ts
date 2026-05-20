@@ -4,6 +4,7 @@ import { Observable, Subject } from 'rxjs';
 export interface SignalCounts {
   acceptedCount: number;
   rejectedCount: number;
+  deliveredCount: number;
   closed?: boolean;
 }
 

@@ -93,15 +93,42 @@ export class SignalsService {
 
     await Promise.all(subscribers.map((s) => this.push.sendToUser(s.userId, payload)));
 
-    this.streams.emit(signal.id, { acceptedCount: 1, rejectedCount: 0 });
+    this.streams.emit(signal.id, { acceptedCount: 1, rejectedCount: 0, deliveredCount: 0 });
     return { signalId: signal.id };
+  }
+
+  async markDelivered(
+    userId: string,
+    signalId: string,
+  ): Promise<{ acceptedCount: number; rejectedCount: number; deliveredCount: number; closed: boolean }> {
+    const signal = await this.prisma.signal.findUnique({ where: { id: signalId } });
+    if (!signal) {
+      throw new NotFoundException('Signal not found');
+    }
+    if (signal.triggeredById === userId) {
+      return this.getCountsWithClosed(signalId);
+    }
+    const subscription = await this.prisma.gameSubscription.findUnique({
+      where: { userId_gameId: { userId, gameId: signal.gameId } },
+    });
+    if (!subscription) {
+      throw new ForbiddenException('Not a subscriber of this game');
+    }
+    await this.prisma.signalDelivery.upsert({
+      where: { signalId_userId: { signalId, userId } },
+      create: { signalId, userId },
+      update: {},
+    });
+    const payload = await this.getCountsWithClosed(signalId);
+    this.streams.emit(signalId, payload);
+    return payload;
   }
 
   async respond(
     userId: string,
     signalId: string,
     response: 'accept' | 'reject',
-  ): Promise<{ acceptedCount: number; rejectedCount: number; closed: boolean }> {
+  ): Promise<{ acceptedCount: number; rejectedCount: number; deliveredCount: number; closed: boolean }> {
     const signal = await this.prisma.signal.findUnique({ where: { id: signalId } });
     if (!signal) {
       throw new NotFoundException('Signal not found');
@@ -110,11 +137,18 @@ export class SignalsService {
       throw new BadRequestException('Signal is closed');
     }
 
-    await this.prisma.signalResponse.upsert({
-      where: { signalId_userId: { signalId, userId } },
-      create: { signalId, userId, response },
-      update: { response, respondedAt: new Date() },
-    });
+    await this.prisma.$transaction([
+      this.prisma.signalResponse.upsert({
+        where: { signalId_userId: { signalId, userId } },
+        create: { signalId, userId, response },
+        update: { response, respondedAt: new Date() },
+      }),
+      this.prisma.signalDelivery.upsert({
+        where: { signalId_userId: { signalId, userId } },
+        create: { signalId, userId },
+        update: {},
+      }),
+    ]);
 
     const counts = await this.getCounts(signalId);
     const allDone = await this.allSubscribersResponded(signal.gameId, signal.triggeredById, signalId);
@@ -201,6 +235,7 @@ export class SignalsService {
       closedAt: signal.closedAt,
       acceptedCount: counts.acceptedCount,
       rejectedCount: counts.rejectedCount,
+      deliveredCount: counts.deliveredCount,
       totalSubscribers,
     };
   }
@@ -223,17 +258,20 @@ export class SignalsService {
     return signal ? { signalId: signal.id } : null;
   }
 
-  async getCounts(signalId: string): Promise<{ acceptedCount: number; rejectedCount: number }> {
-    const [acceptedCount, rejectedCount] = await Promise.all([
+  async getCounts(
+    signalId: string,
+  ): Promise<{ acceptedCount: number; rejectedCount: number; deliveredCount: number }> {
+    const [acceptedCount, rejectedCount, deliveredCount] = await Promise.all([
       this.prisma.signalResponse.count({ where: { signalId, response: 'accept' } }),
       this.prisma.signalResponse.count({ where: { signalId, response: 'reject' } }),
+      this.prisma.signalDelivery.count({ where: { signalId } }),
     ]);
-    return { acceptedCount, rejectedCount };
+    return { acceptedCount, rejectedCount, deliveredCount };
   }
 
   async getCountsWithClosed(
     signalId: string,
-  ): Promise<{ acceptedCount: number; rejectedCount: number; closed: boolean }> {
+  ): Promise<{ acceptedCount: number; rejectedCount: number; deliveredCount: number; closed: boolean }> {
     const [counts, signal] = await Promise.all([
       this.getCounts(signalId),
       this.prisma.signal.findUnique({ where: { id: signalId }, select: { closedAt: true } }),

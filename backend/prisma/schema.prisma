@@ -16,6 +16,7 @@ model User {
   subscriptions GameSubscription[]
   signals       Signal[]
   responses     SignalResponse[]
+  deliveries    SignalDelivery[]
 }
 
 model Device {
@@ -84,6 +85,7 @@ model Signal {
   game          Game             @relation(fields: [gameId], references: [id], onDelete: Cascade)
   triggeredBy   User             @relation(fields: [triggeredById], references: [id], onDelete: Cascade)
   responses     SignalResponse[]
+  deliveries    SignalDelivery[]
 
   @@index([gameId])
   @@index([triggeredById])
@@ -94,6 +96,17 @@ model SignalResponse {
   userId      String
   response    String
   respondedAt DateTime @default(now())
+  signal      Signal   @relation(fields: [signalId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([signalId, userId])
+  @@index([userId])
+}
+
+model SignalDelivery {
+  signalId    String
+  userId      String
+  deliveredAt DateTime @default(now())
   signal      Signal   @relation(fields: [signalId], references: [id], onDelete: Cascade)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
