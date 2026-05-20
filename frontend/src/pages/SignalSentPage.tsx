@@ -97,7 +97,7 @@ export function SignalSentPage() {
     return (
       <div className="min-h-full flex flex-col items-center justify-center p-6 text-center">
         <div className="text-7xl mb-6">🥙</div>
-        <h1 className="text-3xl font-bold">Final score</h1>
+        <h1 className="text-3xl font-bold">Roll call</h1>
         <p className="text-slate-400 mt-2 mb-8">{gameName}</p>
         <div className="card max-w-xs w-full">
           <div className="flex items-baseline justify-center gap-8">
@@ -152,7 +152,7 @@ export function SignalSentPage() {
         )}
       </div>
       <button onClick={onDone} disabled={close.isPending} className="btn-secondary mt-8 px-8">
-        {close.isPending ? 'Closing…' : 'Done'}
+        {close.isPending ? 'Stopping…' : 'Stop signal'}
       </button>
     </div>
   );
