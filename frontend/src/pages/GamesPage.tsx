@@ -308,22 +308,33 @@ function GameCard({ game, onTap, onToggle, menuOpen, setMenuOpen, onEditImage, o
               ⋮
             </button>
           </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggle();
-            }}
-            aria-label={game.subscribed ? 'Unsubscribe' : 'Subscribe'}
-            className={`mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
-              game.subscribed
-                ? 'bg-signal-600/15 border-signal-600/50 text-signal-300'
-                : 'bg-slate-800 border-slate-700 text-slate-400'
-            }`}
-          >
-            <span aria-hidden>{game.subscribed ? '🔔' : '🔕'}</span>
-            <span>{game.subscribed ? 'Subscribed' : 'Off'}</span>
-          </button>
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle();
+              }}
+              aria-label={game.subscribed ? 'Unsubscribe' : 'Subscribe'}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
+                game.subscribed
+                  ? 'bg-signal-600/15 border-signal-600/50 text-signal-300'
+                  : 'bg-slate-800 border-slate-700 text-slate-400'
+              }`}
+            >
+              <span aria-hidden>{game.subscribed ? '🔔' : '🔕'}</span>
+              <span>{game.subscribed ? 'Subscribed' : 'Off'}</span>
+            </button>
+            {typeof game.subscriberCount === 'number' && (
+              <span
+                aria-label={`${game.subscriberCount} subscriber${game.subscriberCount === 1 ? '' : 's'}`}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 border border-slate-700 text-slate-300"
+              >
+                <span aria-hidden>👥</span>
+                <span>{game.subscriberCount}</span>
+              </span>
+            )}
+          </div>
         </div>
       </div>
       {menuOpen && (

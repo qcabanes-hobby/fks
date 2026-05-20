@@ -107,7 +107,13 @@ export class GroupsService {
         group: {
           include: {
             members: { include: { user: true } },
-            games: { include: { subscriptions: { where: { userId } } } },
+            games: {
+              include: {
+                subscriptions: { where: { userId } },
+                _count: { select: { subscriptions: true } },
+              },
+              orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+            },
           },
         },
       },
@@ -132,6 +138,7 @@ export class GroupsService {
         imageUrl: g.imageUrl,
         createdAt: g.createdAt,
         subscribed: g.subscriptions.length > 0,
+        subscriberCount: g._count.subscriptions,
       })),
     };
   }
