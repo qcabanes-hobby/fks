@@ -9,7 +9,9 @@ export function SignalSentPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const [sseFailed, setSseFailed] = useState(false);
-  const [liveCount, setLiveCount] = useState<number | null>(null);
+  const [liveAccepted, setLiveAccepted] = useState<number | null>(null);
+  const [liveRejected, setLiveRejected] = useState<number | null>(null);
+  const [liveClosed, setLiveClosed] = useState<boolean | null>(null);
   const close = useCloseSignal();
 
   const signal = useSignal(id, {
@@ -44,10 +46,14 @@ export function SignalSentPage() {
     }
     es.onmessage = (ev) => {
       try {
-        const data = JSON.parse(ev.data) as { acceptedCount?: number };
-        if (typeof data.acceptedCount === 'number') {
-          setLiveCount(data.acceptedCount);
-        }
+        const data = JSON.parse(ev.data) as {
+          acceptedCount?: number;
+          rejectedCount?: number;
+          closed?: boolean;
+        };
+        if (typeof data.acceptedCount === 'number') setLiveAccepted(data.acceptedCount);
+        if (typeof data.rejectedCount === 'number') setLiveRejected(data.rejectedCount);
+        if (typeof data.closed === 'boolean') setLiveClosed(data.closed);
       } catch {}
     };
     es.onerror = () => {
@@ -59,8 +65,16 @@ export function SignalSentPage() {
     };
   }, [id]);
 
-  const count = liveCount ?? signal.data?.acceptedCount ?? 1;
+  const count = liveAccepted ?? signal.data?.acceptedCount ?? 1;
+  const rejected = liveRejected ?? signal.data?.rejectedCount ?? 0;
+  const totalSubscribers = signal.data?.totalSubscribers;
   const gameName = signal.data?.gameName ?? 'your game';
+  const closed = liveClosed ?? !!signal.data?.closedAt;
+
+  const onBack = () => {
+    clearActiveSignal();
+    navigate('/games', { replace: true });
+  };
 
   const onDone = async () => {
     if (!id) return;
@@ -74,6 +88,34 @@ export function SignalSentPage() {
     navigate('/games', { replace: true });
   };
 
+  if (closed) {
+    return (
+      <div className="min-h-full flex flex-col items-center justify-center p-6 text-center">
+        <div className="text-7xl mb-6">🥙</div>
+        <h1 className="text-3xl font-bold">Final score</h1>
+        <p className="text-slate-400 mt-2 mb-8">{gameName}</p>
+        <div className="card max-w-xs w-full">
+          <div className="flex items-baseline justify-center gap-8">
+            <div>
+              <div className="text-5xl font-bold text-signal-400">{count}</div>
+              <div className="text-slate-400 text-xs mt-1">in</div>
+            </div>
+            <div>
+              <div className="text-3xl font-semibold text-slate-400">{rejected}</div>
+              <div className="text-slate-500 text-xs mt-1">out</div>
+            </div>
+          </div>
+          {typeof totalSubscribers === 'number' && totalSubscribers > 0 && (
+            <div className="text-slate-500 text-xs mt-3">{totalSubscribers} notified</div>
+          )}
+        </div>
+        <button onClick={onBack} className="btn-primary mt-8 px-8">
+          Back to games
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-full flex flex-col items-center justify-center p-6 text-center">
       <div className="relative w-48 h-48 flex items-center justify-center mb-8">
@@ -84,10 +126,18 @@ export function SignalSentPage() {
       <h1 className="text-3xl font-bold">Signal sent!</h1>
       <p className="text-slate-400 mt-2 mb-8">{gameName}</p>
       <div className="card max-w-xs w-full">
-        <div className="text-5xl font-bold text-signal-400">{count}</div>
+        <div className="text-5xl font-bold text-signal-400">
+          {count}
+          {typeof totalSubscribers === 'number' && totalSubscribers > 0 && (
+            <span className="text-2xl text-slate-500 font-semibold"> / {totalSubscribers}</span>
+          )}
+        </div>
         <div className="text-slate-400 text-sm mt-1">
           {count === 1 ? 'person is in!' : 'people are in!'}
         </div>
+        {rejected > 0 && (
+          <div className="text-slate-500 text-xs mt-2">{rejected} can't make it</div>
+        )}
       </div>
       <button onClick={onDone} disabled={close.isPending} className="btn-secondary mt-8 px-8">
         {close.isPending ? 'Closing…' : 'Done'}

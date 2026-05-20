@@ -68,9 +68,11 @@ export class SignalsController {
 
   @Sse('/sse/signals/:id')
   @UseGuards(SseAuthGuard)
-  sseStream(@Param('id') id: string): Observable<{ data: { acceptedCount: number } }> {
-    const initial$ = defer(() => from(this.signals.getAcceptedCount(id)));
+  sseStream(
+    @Param('id') id: string,
+  ): Observable<{ data: { acceptedCount: number; rejectedCount: number; closed?: boolean } }> {
+    const initial$ = defer(() => from(this.signals.getCountsWithClosed(id)));
     const updates$ = this.streams.stream(id);
-    return merge(initial$, updates$).pipe(map((acceptedCount) => ({ data: { acceptedCount } })));
+    return merge(initial$, updates$).pipe(map((counts) => ({ data: counts })));
   }
 }

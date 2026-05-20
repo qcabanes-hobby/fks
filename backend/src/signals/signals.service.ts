@@ -79,7 +79,7 @@ export class SignalsService {
 
     await Promise.all(subscribers.map((s) => this.push.sendToUser(s.userId, payload)));
 
-    this.streams.emit(signal.id, 1);
+    this.streams.emit(signal.id, { acceptedCount: 1, rejectedCount: 0 });
     return { signalId: signal.id };
   }
 
@@ -87,7 +87,7 @@ export class SignalsService {
     userId: string,
     signalId: string,
     response: 'accept' | 'reject',
-  ): Promise<{ acceptedCount: number }> {
+  ): Promise<{ acceptedCount: number; rejectedCount: number; closed: boolean }> {
     const signal = await this.prisma.signal.findUnique({ where: { id: signalId } });
     if (!signal) {
       throw new NotFoundException('Signal not found');
@@ -102,11 +102,33 @@ export class SignalsService {
       update: { response, respondedAt: new Date() },
     });
 
-    const acceptedCount = await this.prisma.signalResponse.count({
-      where: { signalId, response: 'accept' },
-    });
-    this.streams.emit(signalId, acceptedCount);
-    return { acceptedCount };
+    const counts = await this.getCounts(signalId);
+    const allDone = await this.allSubscribersResponded(signal.gameId, signal.triggeredById, signalId);
+    if (allDone) {
+      await this.prisma.signal.update({ where: { id: signalId }, data: { closedAt: new Date() } });
+    }
+    const payload = { ...counts, closed: allDone };
+    this.streams.emit(signalId, payload);
+    return payload;
+  }
+
+  private async allSubscribersResponded(
+    gameId: string,
+    triggererId: string,
+    signalId: string,
+  ): Promise<boolean> {
+    const [subscribers, responses] = await Promise.all([
+      this.prisma.gameSubscription.findMany({
+        where: { gameId, userId: { not: triggererId } },
+        select: { userId: true },
+      }),
+      this.prisma.signalResponse.findMany({
+        where: { signalId },
+        select: { userId: true },
+      }),
+    ]);
+    const respondedIds = new Set(responses.map((r) => r.userId));
+    return subscribers.every((s) => respondedIds.has(s.userId));
   }
 
   async closeSignal(userId: string, signalId: string): Promise<void> {
@@ -150,18 +172,22 @@ export class SignalsService {
     if (!signal) {
       throw new NotFoundException('Signal not found');
     }
-    const acceptedCount = await this.prisma.signalResponse.count({
-      where: { signalId, response: 'accept' },
-    });
+    const [counts, totalSubscribers] = await Promise.all([
+      this.getCounts(signalId),
+      this.prisma.gameSubscription.count({ where: { gameId: signal.gameId } }),
+    ]);
     return {
       id: signal.id,
       gameId: signal.gameId,
       gameName: signal.game.name,
       gameImageUrl: signal.game.imageUrl,
       triggeredBy: signal.triggeredBy.username,
+      triggeredByUsername: signal.triggeredBy.username,
       triggeredAt: signal.triggeredAt,
       closedAt: signal.closedAt,
-      acceptedCount,
+      acceptedCount: counts.acceptedCount,
+      rejectedCount: counts.rejectedCount,
+      totalSubscribers,
     };
   }
 
@@ -183,9 +209,21 @@ export class SignalsService {
     return signal ? { signalId: signal.id } : null;
   }
 
-  async getAcceptedCount(signalId: string): Promise<number> {
-    return this.prisma.signalResponse.count({
-      where: { signalId, response: 'accept' },
-    });
+  async getCounts(signalId: string): Promise<{ acceptedCount: number; rejectedCount: number }> {
+    const [acceptedCount, rejectedCount] = await Promise.all([
+      this.prisma.signalResponse.count({ where: { signalId, response: 'accept' } }),
+      this.prisma.signalResponse.count({ where: { signalId, response: 'reject' } }),
+    ]);
+    return { acceptedCount, rejectedCount };
+  }
+
+  async getCountsWithClosed(
+    signalId: string,
+  ): Promise<{ acceptedCount: number; rejectedCount: number; closed: boolean }> {
+    const [counts, signal] = await Promise.all([
+      this.getCounts(signalId),
+      this.prisma.signal.findUnique({ where: { id: signalId }, select: { closedAt: true } }),
+    ]);
+    return { ...counts, closed: !!signal?.closedAt };
   }
 }
