@@ -93,13 +93,13 @@ export function GamesPage() {
     }
   };
 
-  const onSaveImage = async (imageUrl: string) => {
+  const onSaveGame = async (patch: { imageUrl?: string; minAccepts?: number }) => {
     if (!editImageGame) return;
     try {
-      await update.mutateAsync({ id: editImageGame.id, patch: { imageUrl } });
+      await update.mutateAsync({ id: editImageGame.id, patch });
       setEditImageGame(null);
     } catch (err) {
-      toast.show((err as Error).message || 'Could not update image', 'error');
+      toast.show((err as Error).message || 'Could not update game', 'error');
     }
   };
 
@@ -256,11 +256,11 @@ export function GamesPage() {
         members={group.data?.members ?? []}
       />
 
-      <EditImageModal
+      <EditGameModal
         game={editImageGame}
         busy={update.isPending}
         onClose={() => setEditImageGame(null)}
-        onSubmit={onSaveImage}
+        onSubmit={onSaveGame}
       />
 
       <AddGameModal
@@ -358,6 +358,15 @@ function GameCard({ game, onTap, onToggle, menuOpen, setMenuOpen, onEditImage, o
                 <span>{game.subscriberCount}</span>
               </span>
             )}
+            {typeof game.minAccepts === 'number' && (
+              <span
+                aria-label={`Crew assembles at ${game.minAccepts}`}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 border border-slate-700 text-slate-300"
+              >
+                <span aria-hidden>🎯</span>
+                <span>{game.minAccepts}</span>
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -372,7 +381,7 @@ function GameCard({ game, onTap, onToggle, menuOpen, setMenuOpen, onEditImage, o
             onClick={onEditImage}
             className="block w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-700"
           >
-            Update image
+            Edit game
           </button>
           <button
             onClick={onDelete}
@@ -421,47 +430,94 @@ function MembersModal({ open, onClose, groupName, members }: MembersModalProps) 
   );
 }
 
-interface EditImageModalProps {
+interface EditGameModalProps {
   game: Game | null;
   busy: boolean;
   onClose: () => void;
-  onSubmit: (imageUrl: string) => Promise<void>;
+  onSubmit: (patch: { imageUrl?: string; minAccepts?: number }) => Promise<void>;
 }
 
-function EditImageModal({ game, busy, onClose, onSubmit }: EditImageModalProps) {
+function EditGameModal({ game, busy, onClose, onSubmit }: EditGameModalProps) {
   const [imageUrl, setImageUrl] = useState('');
+  const [minAccepts, setMinAccepts] = useState(2);
 
   useEffect(() => {
     setImageUrl(game?.imageUrl ?? '');
+    setMinAccepts(game?.minAccepts ?? 2);
   }, [game]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSubmit(imageUrl.trim());
+    const patch: { imageUrl?: string; minAccepts?: number } = {};
+    const trimmedUrl = imageUrl.trim();
+    if (trimmedUrl !== (game?.imageUrl ?? '')) patch.imageUrl = trimmedUrl;
+    if (minAccepts !== (game?.minAccepts ?? 2)) patch.minAccepts = minAccepts;
+    await onSubmit(patch);
   };
 
   return (
-    <Modal open={!!game} onClose={onClose} title={game ? `Update image — ${game.name}` : 'Update image'}>
-      <form onSubmit={submit} className="space-y-4">
-        <input
-          className="input"
-          placeholder="Image URL (leave blank to clear)"
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          autoFocus
-        />
-        {imageUrl && (
-          <div className="rounded-xl bg-slate-800 overflow-hidden border border-slate-700 aspect-video flex items-center justify-center">
-            <img
-              src={imageUrl}
-              alt=""
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
+    <Modal open={!!game} onClose={onClose} title={game ? `Edit — ${game.name}` : 'Edit game'}>
+      <form onSubmit={submit} className="space-y-5">
+        <div>
+          <label className="block text-xs font-semibold text-slate-400 mb-1">Image URL</label>
+          <input
+            className="input"
+            placeholder="Leave blank to clear"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            autoFocus
+          />
+          {imageUrl && (
+            <div className="mt-2 rounded-xl bg-slate-800 overflow-hidden border border-slate-700 aspect-video flex items-center justify-center">
+              <img
+                src={imageUrl}
+                alt=""
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-400 mb-1">
+            Crew assembles at
+          </label>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setMinAccepts((n) => Math.max(2, n - 1))}
+              aria-label="Decrease"
+              className="w-10 h-10 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xl"
+            >
+              −
+            </button>
+            <input
+              type="number"
+              min={2}
+              max={50}
+              className="input text-center w-20"
+              value={minAccepts}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (Number.isFinite(n)) setMinAccepts(Math.min(50, Math.max(2, Math.round(n))));
               }}
             />
+            <button
+              type="button"
+              onClick={() => setMinAccepts((n) => Math.min(50, n + 1))}
+              aria-label="Increase"
+              className="w-10 h-10 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xl"
+            >
+              +
+            </button>
+            <span className="text-xs text-slate-500">accepted</span>
           </div>
-        )}
+          <p className="text-xs text-slate-500 mt-1">
+            When this many people accept (including you), the signal auto-closes and the crew gets a heads-up push.
+          </p>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <button type="button" onClick={onClose} className="btn-secondary">
             Cancel

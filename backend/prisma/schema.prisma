@@ -58,6 +58,7 @@ model Game {
   groupId       String
   name          String
   imageUrl      String?
+  minAccepts    Int                @default(2)
   createdAt     DateTime           @default(now())
   group         Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
   subscriptions GameSubscription[]

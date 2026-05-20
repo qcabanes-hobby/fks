@@ -136,6 +136,7 @@ export class GroupsService {
         id: g.id,
         name: g.name,
         imageUrl: g.imageUrl,
+        minAccepts: g.minAccepts,
         createdAt: g.createdAt,
         subscribed: g.subscriptions.length > 0,
         subscriberCount: g._count.subscriptions,

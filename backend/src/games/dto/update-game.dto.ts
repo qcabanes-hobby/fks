@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUrl, Length } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUrl, Length, Max, Min } from 'class-validator';
 
 export class UpdateGameDto {
   @IsOptional()
@@ -9,4 +9,10 @@ export class UpdateGameDto {
   @IsOptional()
   @IsUrl({ require_protocol: true })
   imageUrl?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(2)
+  @Max(50)
+  minAccepts?: number;
 }

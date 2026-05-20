@@ -14,6 +14,7 @@ export interface Game {
   groupId: string;
   name: string;
   imageUrl?: string | null;
+  minAccepts?: number;
   subscribed?: boolean;
   subscriberCount?: number;
 }
@@ -40,6 +41,8 @@ export interface Signal {
   rejectedCount?: number;
   deliveredCount?: number;
   totalSubscribers?: number;
+  minAccepts?: number;
+  userResponse?: 'accept' | 'reject' | null;
 }
 
 export interface AuthResult {

@@ -128,7 +128,11 @@ export function useCreateGame() {
 
 export function useUpdateGame() {
   const qc = useQueryClient();
-  return useMutation<Game, Error, { id: string; patch: { name?: string; imageUrl?: string } }>({
+  return useMutation<
+    Game,
+    Error,
+    { id: string; patch: { name?: string; imageUrl?: string; minAccepts?: number } }
+  >({
     mutationFn: ({ id, patch }) =>
       apiRequest<Game>(`/api/games/${id}`, { method: 'PATCH', body: patch }),
     onSuccess: () => {

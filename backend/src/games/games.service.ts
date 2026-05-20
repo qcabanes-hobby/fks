@@ -17,25 +17,40 @@ export class GamesService {
     const game = await this.prisma.game.create({
       data: { groupId, name, imageUrl: imageUrl ?? null },
     });
-    return { id: game.id, name: game.name, imageUrl: game.imageUrl, createdAt: game.createdAt };
+    return {
+      id: game.id,
+      name: game.name,
+      imageUrl: game.imageUrl,
+      minAccepts: game.minAccepts,
+      createdAt: game.createdAt,
+    };
   }
 
   async updateGame(
     userId: string,
     groupId: string | null,
     gameId: string,
-    patch: { name?: string; imageUrl?: string },
+    patch: { name?: string; imageUrl?: string; minAccepts?: number },
   ) {
     await this.assertMemberOfGameGroup(groupId, gameId);
-    const data: { name?: string; imageUrl?: string | null } = {};
+    const data: { name?: string; imageUrl?: string | null; minAccepts?: number } = {};
     if (patch.name !== undefined) {
       data.name = patch.name;
     }
     if (patch.imageUrl !== undefined) {
       data.imageUrl = patch.imageUrl;
     }
+    if (patch.minAccepts !== undefined) {
+      data.minAccepts = patch.minAccepts;
+    }
     const game = await this.prisma.game.update({ where: { id: gameId }, data });
-    return { id: game.id, name: game.name, imageUrl: game.imageUrl, createdAt: game.createdAt };
+    return {
+      id: game.id,
+      name: game.name,
+      imageUrl: game.imageUrl,
+      minAccepts: game.minAccepts,
+      createdAt: game.createdAt,
+    };
   }
 
   async deleteGame(userId: string, groupId: string | null, gameId: string): Promise<void> {

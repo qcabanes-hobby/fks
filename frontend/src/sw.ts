@@ -21,11 +21,12 @@ self.addEventListener('fetch', () => {});
 
 interface PushPayload {
   signalId: string;
-  type?: 'signal' | 'cancel';
+  type?: 'signal' | 'cancel' | 'crew-assembled';
   gameName?: string;
   gameImageUrl?: string | null;
   triggeredBy?: string;
   currentAccepted?: number;
+  acceptedCount?: number;
 }
 
 self.addEventListener('push', (event: PushEvent) => {
@@ -46,6 +47,33 @@ self.addEventListener('push', (event: PushEvent) => {
         for (const c of clients) {
           c.postMessage({ type: 'signal-cancel', signalId: payload!.signalId });
         }
+      })(),
+    );
+    return;
+  }
+
+  if (payload.type === 'crew-assembled') {
+    const gameName = payload.gameName || 'your game';
+    const accepted = payload.acceptedCount ?? 0;
+    const crewTitle = `🥙 Crew assembled: ${gameName}`;
+    const crewBody = `${accepted} are in. It's on!`;
+    event.waitUntil(
+      (async () => {
+        const notes = await self.registration.getNotifications({ tag: payload!.signalId });
+        for (const n of notes) n.close();
+        const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const c of clients) {
+          c.postMessage({ type: 'signal-crew', signalId: payload!.signalId, gameName, acceptedCount: accepted });
+        }
+        const crewOptions: NotificationOptions & { renotify?: boolean } = {
+          body: crewBody,
+          icon: '/icons/icon-192.png',
+          badge: '/icons/icon-192.png',
+          tag: payload!.signalId,
+          renotify: true,
+          data: { signalId: payload!.signalId },
+        };
+        await self.registration.showNotification(crewTitle, crewOptions);
       })(),
     );
     return;

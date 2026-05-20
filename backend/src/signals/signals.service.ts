@@ -129,7 +129,10 @@ export class SignalsService {
     signalId: string,
     response: 'accept' | 'reject',
   ): Promise<{ acceptedCount: number; rejectedCount: number; deliveredCount: number; closed: boolean }> {
-    const signal = await this.prisma.signal.findUnique({ where: { id: signalId } });
+    const signal = await this.prisma.signal.findUnique({
+      where: { id: signalId },
+      include: { game: true },
+    });
     if (!signal) {
       throw new NotFoundException('Signal not found');
     }
@@ -152,12 +155,46 @@ export class SignalsService {
 
     const counts = await this.getCounts(signalId);
     const allDone = await this.allSubscribersResponded(signal.gameId, signal.triggeredById, signalId);
-    if (allDone) {
+    const thresholdReached = counts.acceptedCount >= signal.game.minAccepts;
+    const shouldClose = allDone || thresholdReached;
+    if (shouldClose) {
       await this.prisma.signal.update({ where: { id: signalId }, data: { closedAt: new Date() } });
     }
-    const payload = { ...counts, closed: allDone };
+    if (thresholdReached && !allDone) {
+      await this.broadcastCrewAssembled(signal.id, signal.gameId, signal.game.name, signal.triggeredById, counts.acceptedCount);
+    }
+    const payload = { ...counts, closed: shouldClose };
     this.streams.emit(signalId, payload);
     return payload;
+  }
+
+  private async broadcastCrewAssembled(
+    signalId: string,
+    gameId: string,
+    gameName: string,
+    triggererId: string,
+    acceptedCount: number,
+  ): Promise<void> {
+    const [accepted, subscribers] = await Promise.all([
+      this.prisma.signalResponse.findMany({
+        where: { signalId, response: 'accept', userId: { not: triggererId } },
+        select: { userId: true },
+      }),
+      this.prisma.gameSubscription.findMany({
+        where: { gameId, userId: { not: triggererId } },
+        select: { userId: true },
+      }),
+    ]);
+    const respondedAccept = new Set(accepted.map((a) => a.userId));
+    const pending = subscribers.filter((s) => !respondedAccept.has(s.userId));
+
+    const crewPayload = { signalId, type: 'crew-assembled' as const, gameName, acceptedCount };
+    const cancelPayload = { signalId, type: 'cancel' as const };
+
+    await Promise.all([
+      ...accepted.map((a) => this.push.sendToUser(a.userId, crewPayload)),
+      ...pending.map((p) => this.push.sendToUser(p.userId, cancelPayload)),
+    ]);
   }
 
   private async allSubscribersResponded(
@@ -209,7 +246,7 @@ export class SignalsService {
     await Promise.all(pending.map((p) => this.push.sendToUser(p.userId, payload)));
   }
 
-  async getSignal(signalId: string) {
+  async getSignal(signalId: string, viewerId?: string) {
     const signal = await this.prisma.signal.findUnique({
       where: { id: signalId },
       include: {
@@ -220,9 +257,15 @@ export class SignalsService {
     if (!signal) {
       throw new NotFoundException('Signal not found');
     }
-    const [counts, totalSubscribers] = await Promise.all([
+    const [counts, totalSubscribers, viewerResponse] = await Promise.all([
       this.getCounts(signalId),
       this.prisma.gameSubscription.count({ where: { gameId: signal.gameId } }),
+      viewerId
+        ? this.prisma.signalResponse.findUnique({
+            where: { signalId_userId: { signalId, userId: viewerId } },
+            select: { response: true },
+          })
+        : Promise.resolve(null),
     ]);
     return {
       id: signal.id,
@@ -237,6 +280,8 @@ export class SignalsService {
       rejectedCount: counts.rejectedCount,
       deliveredCount: counts.deliveredCount,
       totalSubscribers,
+      minAccepts: signal.game.minAccepts,
+      userResponse: (viewerResponse?.response as 'accept' | 'reject' | undefined) ?? null,
     };
   }
 

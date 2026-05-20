@@ -73,8 +73,10 @@ export function SignalSentPage() {
   const delivered = liveDelivered ?? signal.data?.deliveredCount ?? 0;
   const totalSubscribers = signal.data?.totalSubscribers;
   const othersTotal = typeof totalSubscribers === 'number' ? Math.max(totalSubscribers - 1, 0) : null;
+  const minAccepts = signal.data?.minAccepts;
   const gameName = signal.data?.gameName ?? 'your game';
   const closed = liveClosed ?? !!signal.data?.closedAt;
+  const crewAssembled = typeof minAccepts === 'number' && count >= minAccepts;
 
   const onBack = () => {
     clearActiveSignal();
@@ -96,8 +98,8 @@ export function SignalSentPage() {
   if (closed) {
     return (
       <div className="min-h-full flex flex-col items-center justify-center p-6 text-center">
-        <div className="text-7xl mb-6">🥙</div>
-        <h1 className="text-3xl font-bold">Roll call</h1>
+        <div className="text-7xl mb-6">{crewAssembled ? '🎉' : '🥙'}</div>
+        <h1 className="text-3xl font-bold">{crewAssembled ? 'Crew assembled!' : 'Roll call'}</h1>
         <p className="text-slate-400 mt-2 mb-8">{gameName}</p>
         <div className="card max-w-xs w-full">
           <div className="flex items-baseline justify-center gap-8">

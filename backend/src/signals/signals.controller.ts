@@ -62,8 +62,8 @@ export class SignalsController {
 
   @Get('signals/:id')
   @UseGuards(AuthGuard)
-  get(@Param('id') id: string) {
-    return this.signals.getSignal(id);
+  get(@CurrentUser() auth: AuthContext, @Param('id') id: string) {
+    return this.signals.getSignal(id, auth.userId);
   }
 
   @Post('signals/:id/close')
