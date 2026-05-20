@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EnableNotificationsBanner } from '../components/EnableNotificationsBanner';
+import { JoinedSignalBanner } from '../components/JoinedSignalBanner';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
 import { getActiveSignal } from '../lib/auth';
@@ -146,6 +147,8 @@ export function GamesPage() {
         )}
       </header>
 
+      <JoinedSignalBanner />
+
       <EnableNotificationsBanner enabled={!!group.data?.id} />
 
       {games.isLoading ? (
@@ -202,10 +205,19 @@ export function GamesPage() {
         title="Send the kebab signal?"
         message={
           confirmGame && (
-            <p>
-              Everyone subscribed to <span className="font-semibold text-signal-400">{confirmGame.name}</span> will get a
-              push notification.
-            </p>
+            <div className="space-y-3">
+              <p>
+                Everyone subscribed to <span className="font-semibold text-signal-400">{confirmGame.name}</span> will get a
+                push notification.
+              </p>
+              {typeof confirmGame.minAccepts === 'number' &&
+                (confirmGame.subscriberCount ?? 0) < confirmGame.minAccepts && (
+                  <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-sm text-amber-200">
+                    ⚠️ Crew target is {confirmGame.minAccepts}, but only {confirmGame.subscriberCount ?? 0} subscribed.
+                    The signal will still go out, but the crew can't fully assemble unless more people subscribe.
+                  </p>
+                )}
+            </div>
           )
         }
         confirmLabel="Send signal 🥙"
@@ -358,15 +370,32 @@ function GameCard({ game, onTap, onToggle, menuOpen, setMenuOpen, onEditImage, o
                 <span>{game.subscriberCount}</span>
               </span>
             )}
-            {typeof game.minAccepts === 'number' && (
-              <span
-                aria-label={`Crew assembles at ${game.minAccepts}`}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 border border-slate-700 text-slate-300"
-              >
-                <span aria-hidden>🎯</span>
-                <span>{game.minAccepts}</span>
-              </span>
-            )}
+            {typeof game.minAccepts === 'number' && (() => {
+              const subs = game.subscriberCount ?? 0;
+              const unreachable = game.minAccepts > subs;
+              return (
+                <span
+                  aria-label={
+                    unreachable
+                      ? `Crew assembles at ${game.minAccepts}, but only ${subs} subscribed`
+                      : `Crew assembles at ${game.minAccepts}`
+                  }
+                  title={
+                    unreachable
+                      ? `Needs ${game.minAccepts}, only ${subs} subscribed — crew can't fully assemble`
+                      : undefined
+                  }
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                    unreachable
+                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                      : 'bg-slate-800 border-slate-700 text-slate-300'
+                  }`}
+                >
+                  <span aria-hidden>{unreachable ? '⚠️' : '🎯'}</span>
+                  <span>{game.minAccepts}</span>
+                </span>
+              );
+            })()}
           </div>
         </div>
       </div>

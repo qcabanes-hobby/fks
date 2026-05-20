@@ -77,6 +77,10 @@ export function SignalSentPage() {
   const gameName = signal.data?.gameName ?? 'your game';
   const closed = liveClosed ?? !!signal.data?.closedAt;
   const crewAssembled = typeof minAccepts === 'number' && count >= minAccepts;
+  const everyoneResponded =
+    typeof totalSubscribers === 'number' && count + rejected >= totalSubscribers;
+  const crewUnreachable =
+    closed && !crewAssembled && typeof minAccepts === 'number' && everyoneResponded;
 
   const onBack = () => {
     clearActiveSignal();
@@ -98,9 +102,16 @@ export function SignalSentPage() {
   if (closed) {
     return (
       <div className="min-h-full flex flex-col items-center justify-center p-6 text-center">
-        <div className="text-7xl mb-6">{crewAssembled ? '🎉' : '🥙'}</div>
-        <h1 className="text-3xl font-bold">{crewAssembled ? 'Crew assembled!' : 'Roll call'}</h1>
+        <div className="text-7xl mb-6">{crewAssembled ? '🎉' : crewUnreachable ? '😕' : '🥙'}</div>
+        <h1 className="text-3xl font-bold">
+          {crewAssembled ? 'Crew assembled!' : crewUnreachable ? "Crew couldn't be reached" : 'Roll call'}
+        </h1>
         <p className="text-slate-400 mt-2 mb-8">{gameName}</p>
+        {crewUnreachable && typeof minAccepts === 'number' && (
+          <p className="text-amber-300 text-sm -mt-4 mb-4">
+            Needed {minAccepts}, only {count} were in.
+          </p>
+        )}
         <div className="card max-w-xs w-full">
           <div className="flex items-baseline justify-center gap-8">
             <div>

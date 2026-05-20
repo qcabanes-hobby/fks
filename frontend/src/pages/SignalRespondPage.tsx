@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { reportSignalDelivered, useRespondToSignal, useSignal } from '../lib/queries';
+import { setJoinedSignal } from '../lib/auth';
 import { useToast } from '../components/Toast';
 
 export function SignalRespondPage() {
@@ -20,8 +21,9 @@ export function SignalRespondPage() {
     const existing = signal.data?.userResponse;
     if (existing === 'accept' || existing === 'reject') {
       setResponded(existing);
+      if (existing === 'accept' && id) setJoinedSignal(id);
     }
-  }, [signal.data?.userResponse, responded]);
+  }, [signal.data?.userResponse, responded, id]);
 
   useEffect(() => {
     if (responded) return;
@@ -36,6 +38,7 @@ export function SignalRespondPage() {
     try {
       await respond.mutateAsync({ signalId: id, response });
       setResponded(response);
+      if (response === 'accept') setJoinedSignal(id);
     } catch (err) {
       const msg = (err as Error).message || 'Could not respond';
       if (/closed/i.test(msg)) {
