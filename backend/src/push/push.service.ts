@@ -42,6 +42,14 @@ export class PushService implements OnModuleInit {
     });
   }
 
+  async isDeviceSubscribed(deviceId: string): Promise<boolean> {
+    const device = await this.prisma.device.findUnique({
+      where: { id: deviceId },
+      select: { pushEndpoint: true, pushP256dh: true, pushAuth: true },
+    });
+    return !!(device?.pushEndpoint && device?.pushP256dh && device?.pushAuth);
+  }
+
   async sendToUser(userId: string, payload: Record<string, unknown>): Promise<void> {
     const devices = await this.prisma.device.findMany({
       where: {

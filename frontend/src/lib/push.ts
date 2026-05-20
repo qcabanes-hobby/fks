@@ -36,6 +36,32 @@ async function getRegistration(): Promise<ServiceWorkerRegistration | null> {
   }
 }
 
+async function saveSubscriptionToServer(sub: PushSubscription): Promise<void> {
+  const raw = sub.toJSON();
+  await apiRequest('/api/push/subscribe', {
+    method: 'POST',
+    body: { endpoint: raw.endpoint, keys: raw.keys },
+  });
+}
+
+async function createSubscription(
+  reg: ServiceWorkerRegistration,
+  publicKey: string,
+): Promise<PushSubscription | null> {
+  try {
+    return await withTimeout(
+      reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+      }),
+      8000,
+      'pushManager.subscribe',
+    );
+  } catch {
+    return null;
+  }
+}
+
 export async function ensurePushSubscription(
   { promptIfNeeded = true }: { promptIfNeeded?: boolean } = {},
 ): Promise<boolean> {
@@ -56,30 +82,26 @@ export async function ensurePushSubscription(
   const { publicKey } = await apiRequest<{ publicKey: string }>('/api/push/vapid-public-key', { auth: false });
   if (!publicKey) return false;
 
+  let serverSubscribed = false;
+  try {
+    const status = await apiRequest<{ subscribed: boolean }>('/api/push/status');
+    serverSubscribed = !!status.subscribed;
+  } catch {}
+
   let sub = await reg.pushManager.getSubscription();
-  if (!sub) {
+
+  if (sub && !serverSubscribed) {
     try {
-      sub = await withTimeout(
-        reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
-        }),
-        8000,
-        'pushManager.subscribe',
-      );
-    } catch {
-      return false;
-    }
+      await sub.unsubscribe();
+    } catch {}
+    sub = null;
   }
 
-  const raw = sub.toJSON();
-  await apiRequest('/api/push/subscribe', {
-    method: 'POST',
-    body: {
-      endpoint: raw.endpoint,
-      keys: raw.keys,
-    },
-  });
+  if (!sub) {
+    sub = await createSubscription(reg, publicKey);
+    if (!sub) return false;
+  }
 
+  await saveSubscriptionToServer(sub);
   return true;
 }

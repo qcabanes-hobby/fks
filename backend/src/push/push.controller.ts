@@ -14,6 +14,12 @@ export class PushController {
     return { publicKey: this.push.getPublicKey() };
   }
 
+  @Get('status')
+  @UseGuards(AuthGuard)
+  async status(@CurrentUser() auth: AuthContext) {
+    return { subscribed: await this.push.isDeviceSubscribed(auth.deviceId) };
+  }
+
   @Post('subscribe')
   @HttpCode(200)
   @UseGuards(AuthGuard)
