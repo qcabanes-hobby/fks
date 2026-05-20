@@ -107,6 +107,7 @@ export function useGames() {
       const group = await apiRequest<GroupWithMembers>('/api/groups/me');
       return group.games ?? [];
     },
+    refetchInterval: 10000,
   });
 }
 
