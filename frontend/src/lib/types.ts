@@ -9,6 +9,18 @@ export interface Group {
   name: string;
 }
 
+export interface GameActiveSignal {
+  id: string;
+  triggeredById: string;
+  triggeredByUsername: string;
+  triggeredAt: string;
+  acceptedCount: number;
+  rejectedCount: number;
+  totalSubscribers: number;
+  minAccepts: number;
+  userResponse: 'accept' | 'reject' | null;
+}
+
 export interface Game {
   id: string;
   groupId: string;
@@ -17,6 +29,7 @@ export interface Game {
   minAccepts?: number;
   subscribed?: boolean;
   subscriberCount?: number;
+  activeSignal?: GameActiveSignal | null;
 }
 
 export interface Member extends User {

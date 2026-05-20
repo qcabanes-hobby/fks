@@ -69,6 +69,14 @@ export class SignalsService {
       throw new BadRequestException('Need at least one other subscriber to send a signal');
     }
 
+    const openSignal = await this.prisma.signal.findFirst({
+      where: { gameId, closedAt: null },
+      select: { id: true },
+    });
+    if (openSignal) {
+      throw new BadRequestException('A signal is already pending for this game');
+    }
+
     const signal = await this.prisma.signal.create({
       data: {
         gameId,

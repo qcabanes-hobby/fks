@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EnableNotificationsBanner } from '../components/EnableNotificationsBanner';
-import { JoinedSignalBanner } from '../components/JoinedSignalBanner';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
 import { getActiveSignal } from '../lib/auth';
@@ -12,6 +11,7 @@ import {
   useGames,
   useGroup,
   useLeaveGroup,
+  useMe,
   useSubscribe,
   useTriggerSignal,
   useUnsubscribe,
@@ -22,6 +22,7 @@ import type { Game, Member } from '../lib/types';
 export function GamesPage() {
   const games = useGames();
   const group = useGroup();
+  const me = useMe();
   const navigate = useNavigate();
   const toast = useToast();
   const subscribe = useSubscribe();
@@ -147,8 +148,6 @@ export function GamesPage() {
         )}
       </header>
 
-      <JoinedSignalBanner />
-
       <EnableNotificationsBanner enabled={!!group.data?.id} />
 
       {games.isLoading ? (
@@ -159,7 +158,26 @@ export function GamesPage() {
             <GameCard
               key={g.id}
               game={g}
+              myId={me.data?.id}
               onTap={() => {
+                const active = g.activeSignal;
+                if (active) {
+                  if (active.triggeredById === me.data?.id) {
+                    navigate(`/signal/${active.id}/sent`);
+                    return;
+                  }
+                  if (!active.userResponse) {
+                    navigate(`/signal/${active.id}/respond`);
+                    return;
+                  }
+                  toast.show(
+                    active.userResponse === 'accept'
+                      ? "You're already in — waiting on the rest of the crew."
+                      : "You already said no — waiting for the signal to close.",
+                    'info',
+                  );
+                  return;
+                }
                 if (!g.subscribed) {
                   toast.show('Subscribe to this game before sending a signal', 'info');
                   return;
@@ -294,6 +312,7 @@ export function GamesPage() {
 
 interface GameCardProps {
   game: Game;
+  myId?: string;
   onTap: () => void;
   onToggle: () => void;
   menuOpen: boolean;
@@ -302,17 +321,38 @@ interface GameCardProps {
   onDelete: () => void;
 }
 
-function GameCard({ game, onTap, onToggle, menuOpen, setMenuOpen, onEditImage, onDelete }: GameCardProps) {
-  const canSignal = !!game.subscribed && (game.subscriberCount ?? 0) >= 2;
-  const subtitle = !game.subscribed
-    ? 'Subscribe to send a signal'
-    : (game.subscriberCount ?? 0) < 2
-    ? 'Needs one more subscriber'
-    : 'Tap to send signal';
+function GameCard({ game, myId, onTap, onToggle, menuOpen, setMenuOpen, onEditImage, onDelete }: GameCardProps) {
+  const active = game.activeSignal ?? null;
+  const isMine = !!active && !!myId && active.triggeredById === myId;
+  const myResponse = active?.userResponse ?? null;
+  const canSignal = !active && !!game.subscribed && (game.subscriberCount ?? 0) >= 2;
+
+  let subtitle: string;
+  if (active) {
+    if (isMine) subtitle = 'Your signal is live — tap to view';
+    else if (myResponse === 'accept') subtitle = "You're in — waiting on the crew";
+    else if (myResponse === 'reject') subtitle = 'You passed — signal still open';
+    else subtitle = `${active.triggeredByUsername} sent a signal — tap to respond`;
+  } else if (!game.subscribed) {
+    subtitle = 'Subscribe to send a signal';
+  } else if ((game.subscriberCount ?? 0) < 2) {
+    subtitle = 'Needs one more subscriber';
+  } else {
+    subtitle = 'Tap to send signal';
+  }
+
+  const interactive = !!active || canSignal;
+  const tone = active
+    ? isMine || myResponse === 'accept'
+      ? 'border-signal-600/60 bg-signal-600/5'
+      : myResponse === 'reject'
+      ? 'border-slate-700'
+      : 'border-amber-500/50 bg-amber-500/5'
+    : '';
   return (
     <div
-      className={`relative card transition cursor-pointer ${
-        canSignal ? 'hover:border-signal-600 active:scale-[0.99]' : 'opacity-70'
+      className={`relative card transition cursor-pointer ${tone} ${
+        interactive ? 'hover:border-signal-600 active:scale-[0.99]' : 'opacity-70'
       }`}
       onClick={onTap}
     >
@@ -397,6 +437,7 @@ function GameCard({ game, onTap, onToggle, menuOpen, setMenuOpen, onEditImage, o
               );
             })()}
           </div>
+          {active && <ActiveSignalRow active={active} isMine={isMine} />}
         </div>
       </div>
       {menuOpen && (
@@ -420,6 +461,48 @@ function GameCard({ game, onTap, onToggle, menuOpen, setMenuOpen, onEditImage, o
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+interface ActiveSignalRowProps {
+  active: NonNullable<Game['activeSignal']>;
+  isMine: boolean;
+}
+
+function ActiveSignalRow({ active, isMine }: ActiveSignalRowProps) {
+  const { acceptedCount, rejectedCount, minAccepts, totalSubscribers, userResponse } = active;
+  const progress = `${acceptedCount}/${minAccepts}`;
+  let pill: { label: string; classes: string };
+  if (isMine) {
+    pill = { label: '🥙 Your signal', classes: 'bg-signal-600/15 border-signal-600/50 text-signal-300' };
+  } else if (userResponse === 'accept') {
+    pill = { label: "🥙 You're in", classes: 'bg-signal-600/15 border-signal-600/50 text-signal-300' };
+  } else if (userResponse === 'reject') {
+    pill = { label: '👋 You passed', classes: 'bg-slate-800 border-slate-700 text-slate-400' };
+  } else {
+    pill = { label: '🚨 Tap to respond', classes: 'bg-amber-500/15 border-amber-500/40 text-amber-200' };
+  }
+  const senderLine = isMine
+    ? 'You sent this signal.'
+    : `${active.triggeredByUsername} sent a signal.`;
+  return (
+    <div className="mt-3 border-t border-slate-800 pt-2">
+      <div className="flex items-center gap-2 flex-wrap text-xs">
+        <span
+          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold border ${pill.classes}`}
+        >
+          {pill.label}
+        </span>
+        <span className="text-slate-400">
+          {progress} in
+          {rejectedCount > 0 && <span className="text-slate-500"> · {rejectedCount} out</span>}
+          {typeof totalSubscribers === 'number' && (
+            <span className="text-slate-500"> · {totalSubscribers} subs</span>
+          )}
+        </span>
+      </div>
+      <p className="mt-1 text-[11px] text-slate-500 truncate">{senderLine}</p>
     </div>
   );
 }

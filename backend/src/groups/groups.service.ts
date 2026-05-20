@@ -111,6 +111,17 @@ export class GroupsService {
               include: {
                 subscriptions: { where: { userId } },
                 _count: { select: { subscriptions: true } },
+                signals: {
+                  where: { closedAt: null },
+                  orderBy: { triggeredAt: 'desc' },
+                  take: 1,
+                  include: {
+                    triggeredBy: { select: { id: true, username: true } },
+                    responses: {
+                      select: { userId: true, response: true },
+                    },
+                  },
+                },
               },
               orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
             },
@@ -132,15 +143,46 @@ export class GroupsService {
         username: m.user.username,
         joinedAt: m.joinedAt,
       })),
-      games: group.games.map((g) => ({
-        id: g.id,
-        name: g.name,
-        imageUrl: g.imageUrl,
-        minAccepts: g.minAccepts,
-        createdAt: g.createdAt,
-        subscribed: g.subscriptions.length > 0,
-        subscriberCount: g._count.subscriptions,
-      })),
+      games: group.games.map((g) => {
+        const open = g.signals[0];
+        let activeSignal: {
+          id: string;
+          triggeredById: string;
+          triggeredByUsername: string;
+          triggeredAt: Date;
+          acceptedCount: number;
+          rejectedCount: number;
+          totalSubscribers: number;
+          minAccepts: number;
+          userResponse: 'accept' | 'reject' | null;
+        } | null = null;
+        if (open) {
+          const accepted = open.responses.filter((r) => r.response === 'accept').length;
+          const rejected = open.responses.filter((r) => r.response === 'reject').length;
+          const mine = open.responses.find((r) => r.userId === userId);
+          activeSignal = {
+            id: open.id,
+            triggeredById: open.triggeredById,
+            triggeredByUsername: open.triggeredBy.username,
+            triggeredAt: open.triggeredAt,
+            acceptedCount: accepted,
+            rejectedCount: rejected,
+            totalSubscribers: g._count.subscriptions,
+            minAccepts: g.minAccepts,
+            userResponse: (mine?.response as 'accept' | 'reject' | undefined) ?? null,
+          };
+        }
+        return {
+          id: g.id,
+          name: g.name,
+          imageUrl: g.imageUrl,
+          minAccepts: g.minAccepts,
+          createdAt: g.createdAt,
+          subscribed: g.subscriptions.length > 0,
+          subscriberCount: g._count.subscriptions,
+          activeSignal,
+        };
+      }),
     };
   }
 }

@@ -2,8 +2,6 @@ import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
 
 const STORAGE_KEY = 'fks.authToken';
 const ACTIVE_SIGNAL_KEY = 'fks.activeSignal';
-const JOINED_SIGNAL_KEY = 'fks.joinedSignal';
-const JOINED_SIGNAL_EVENT = 'fks.joinedSignal.change';
 
 export function getActiveSignal(): string | null {
   try {
@@ -23,42 +21,6 @@ export function clearActiveSignal(): void {
   try {
     localStorage.removeItem(ACTIVE_SIGNAL_KEY);
   } catch {}
-}
-
-export function getJoinedSignal(): string | null {
-  try {
-    return localStorage.getItem(JOINED_SIGNAL_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function setJoinedSignal(id: string): void {
-  try {
-    localStorage.setItem(JOINED_SIGNAL_KEY, id);
-  } catch {}
-  try {
-    window.dispatchEvent(new CustomEvent(JOINED_SIGNAL_EVENT));
-  } catch {}
-}
-
-export function clearJoinedSignal(): void {
-  try {
-    localStorage.removeItem(JOINED_SIGNAL_KEY);
-  } catch {}
-  try {
-    window.dispatchEvent(new CustomEvent(JOINED_SIGNAL_EVENT));
-  } catch {}
-}
-
-export function subscribeJoinedSignal(cb: () => void): () => void {
-  const handler = () => cb();
-  window.addEventListener(JOINED_SIGNAL_EVENT, handler);
-  window.addEventListener('storage', handler);
-  return () => {
-    window.removeEventListener(JOINED_SIGNAL_EVENT, handler);
-    window.removeEventListener('storage', handler);
-  };
 }
 
 export function getToken(): string | null {

@@ -107,7 +107,7 @@ export function useGames() {
       const group = await apiRequest<GroupWithMembers>('/api/groups/me');
       return group.games ?? [];
     },
-    refetchInterval: 10000,
+    refetchInterval: 5000,
   });
 }
 
@@ -198,6 +198,8 @@ export function useRespondToSignal() {
       apiRequest<void>(`/api/signals/${signalId}/respond`, { method: 'POST', body: { response } }),
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: qk.signal(vars.signalId) });
+      qc.invalidateQueries({ queryKey: qk.games });
+      qc.invalidateQueries({ queryKey: qk.group });
     },
   });
 }
@@ -208,6 +210,8 @@ export function useCloseSignal() {
     mutationFn: (signalId) => apiRequest<void>(`/api/signals/${signalId}/close`, { method: 'POST' }),
     onSuccess: (_d, signalId) => {
       qc.invalidateQueries({ queryKey: qk.signal(signalId) });
+      qc.invalidateQueries({ queryKey: qk.games });
+      qc.invalidateQueries({ queryKey: qk.group });
     },
   });
 }
