@@ -84,9 +84,10 @@ self.addEventListener('push', (event: PushEvent) => {
           signalId: payload!.signalId,
           gameName: payload!.gameName,
         });
-        return;
+      } else {
+        await self.registration.showNotification(title, options);
       }
-      await self.registration.showNotification(title, options);
+      await reportDelivered(payload!.signalId);
     })(),
   );
 });
@@ -100,6 +101,17 @@ async function respondInBackground(signalId: string, response: 'accept' | 'rejec
       method: 'POST',
       headers,
       body: JSON.stringify({ response }),
+    });
+  } catch {}
+}
+
+async function reportDelivered(signalId: string): Promise<void> {
+  const token = await idbGet<string>(AUTH_TOKEN_KEY).catch(() => null);
+  if (!token) return;
+  try {
+    await fetch(`/api/signals/${signalId}/delivered`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
     });
   } catch {}
 }

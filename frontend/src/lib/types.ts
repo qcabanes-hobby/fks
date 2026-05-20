@@ -38,6 +38,7 @@ export interface Signal {
   closedAt?: string | null;
   acceptedCount: number;
   rejectedCount?: number;
+  deliveredCount?: number;
   totalSubscribers?: number;
 }
 

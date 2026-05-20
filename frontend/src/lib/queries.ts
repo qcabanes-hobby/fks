@@ -211,6 +211,12 @@ export async function fetchPendingSignal(): Promise<{ signalId: string } | null>
   return apiRequest<{ signalId: string } | null>('/api/signals/pending');
 }
 
+export async function reportSignalDelivered(signalId: string): Promise<void> {
+  try {
+    await apiRequest<unknown>(`/api/signals/${signalId}/delivered`, { method: 'POST' });
+  } catch {}
+}
+
 export function useSignal(signalId: string | undefined, options?: { refetchInterval?: number | false }) {
   return useQuery<Signal>({
     queryKey: signalId ? qk.signal(signalId) : ['signal', 'none'],

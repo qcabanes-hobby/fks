@@ -11,6 +11,7 @@ export function SignalSentPage() {
   const [sseFailed, setSseFailed] = useState(false);
   const [liveAccepted, setLiveAccepted] = useState<number | null>(null);
   const [liveRejected, setLiveRejected] = useState<number | null>(null);
+  const [liveDelivered, setLiveDelivered] = useState<number | null>(null);
   const [liveClosed, setLiveClosed] = useState<boolean | null>(null);
   const close = useCloseSignal();
 
@@ -49,10 +50,12 @@ export function SignalSentPage() {
         const data = JSON.parse(ev.data) as {
           acceptedCount?: number;
           rejectedCount?: number;
+          deliveredCount?: number;
           closed?: boolean;
         };
         if (typeof data.acceptedCount === 'number') setLiveAccepted(data.acceptedCount);
         if (typeof data.rejectedCount === 'number') setLiveRejected(data.rejectedCount);
+        if (typeof data.deliveredCount === 'number') setLiveDelivered(data.deliveredCount);
         if (typeof data.closed === 'boolean') setLiveClosed(data.closed);
       } catch {}
     };
@@ -67,7 +70,9 @@ export function SignalSentPage() {
 
   const count = liveAccepted ?? signal.data?.acceptedCount ?? 1;
   const rejected = liveRejected ?? signal.data?.rejectedCount ?? 0;
+  const delivered = liveDelivered ?? signal.data?.deliveredCount ?? 0;
   const totalSubscribers = signal.data?.totalSubscribers;
+  const othersTotal = typeof totalSubscribers === 'number' ? Math.max(totalSubscribers - 1, 0) : null;
   const gameName = signal.data?.gameName ?? 'your game';
   const closed = liveClosed ?? !!signal.data?.closedAt;
 
@@ -105,8 +110,10 @@ export function SignalSentPage() {
               <div className="text-slate-500 text-xs mt-1">out</div>
             </div>
           </div>
-          {typeof totalSubscribers === 'number' && (
-            <div className="text-slate-500 text-xs mt-3">{totalSubscribers} notified</div>
+          {othersTotal !== null && othersTotal > 0 && (
+            <div className="text-slate-500 text-xs mt-3">
+              ✓ {delivered}/{othersTotal} got the notification
+            </div>
           )}
         </div>
         <button onClick={onBack} className="btn-primary mt-8 px-8">
@@ -135,8 +142,13 @@ export function SignalSentPage() {
         <div className="text-slate-400 text-sm mt-1">
           {count === 1 ? 'person is in!' : 'people are in!'}
         </div>
+        {othersTotal !== null && othersTotal > 0 && (
+          <div className="text-slate-500 text-xs mt-2">
+            ✓ {delivered}/{othersTotal} got the notification
+          </div>
+        )}
         {rejected > 0 && (
-          <div className="text-slate-500 text-xs mt-2">{rejected} can't make it</div>
+          <div className="text-slate-500 text-xs mt-1">{rejected} can't make it</div>
         )}
       </div>
       <button onClick={onDone} disabled={close.isPending} className="btn-secondary mt-8 px-8">

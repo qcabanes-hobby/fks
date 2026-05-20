@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useRespondToSignal, useSignal } from '../lib/queries';
+import { reportSignalDelivered, useRespondToSignal, useSignal } from '../lib/queries';
 import { useToast } from '../components/Toast';
 
 export function SignalRespondPage() {
@@ -10,6 +10,10 @@ export function SignalRespondPage() {
   const respond = useRespondToSignal();
   const [responded, setResponded] = useState<'accept' | 'reject' | null>(null);
   const signal = useSignal(id, { refetchInterval: responded ? false : 4000 });
+
+  useEffect(() => {
+    if (id) void reportSignalDelivered(id);
+  }, [id]);
 
   useEffect(() => {
     if (responded) return;
