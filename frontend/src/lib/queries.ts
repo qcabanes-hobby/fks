@@ -207,6 +207,10 @@ export function useCloseSignal() {
   });
 }
 
+export async function fetchPendingSignal(): Promise<{ signalId: string } | null> {
+  return apiRequest<{ signalId: string } | null>('/api/signals/pending');
+}
+
 export function useSignal(signalId: string | undefined, options?: { refetchInterval?: number | false }) {
   return useQuery<Signal>({
     queryKey: signalId ? qk.signal(signalId) : ['signal', 'none'],

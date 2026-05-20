@@ -165,6 +165,24 @@ export class SignalsService {
     };
   }
 
+  async getPendingForUser(userId: string, groupId: string | null) {
+    if (!groupId) return null;
+    const signal = await this.prisma.signal.findFirst({
+      where: {
+        closedAt: null,
+        triggeredById: { not: userId },
+        game: {
+          groupId,
+          subscriptions: { some: { userId } },
+        },
+        responses: { none: { userId } },
+      },
+      orderBy: { triggeredAt: 'desc' },
+      select: { id: true },
+    });
+    return signal ? { signalId: signal.id } : null;
+  }
+
   async getAcceptedCount(signalId: string): Promise<number> {
     return this.prisma.signalResponse.count({
       where: { signalId, response: 'accept' },

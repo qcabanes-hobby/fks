@@ -120,17 +120,13 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
       const url = `/signal/${signalId}/respond`;
       const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const client of all) {
-        if ('focus' in client) {
-          try {
+        try {
+          if ('focus' in client) {
             await (client as WindowClient).focus();
-            if ('navigate' in client) {
-              try {
-                await (client as WindowClient).navigate(url);
-              } catch {}
-            }
-            return;
-          } catch {}
-        }
+          }
+          client.postMessage({ type: 'signal-open', signalId });
+          return;
+        } catch {}
       }
       if (self.clients.openWindow) {
         await self.clients.openWindow(url);

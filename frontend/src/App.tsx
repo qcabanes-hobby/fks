@@ -4,7 +4,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react';
 import { getActiveSignal, getToken, requestPersistentStorage, syncTokenToIdb } from './lib/auth';
 import { ensurePushSubscription } from './lib/push';
 import { hasSkippedInstall, isStandalone } from './lib/pwa';
-import { useGroup } from './lib/queries';
+import { fetchPendingSignal, useGroup } from './lib/queries';
 import { ToastProvider, useToast } from './components/Toast';
 import { InstallPage } from './pages/InstallPage';
 import { OnboardingPage } from './pages/OnboardingPage';
@@ -60,11 +60,40 @@ function AppInner() {
   }, [needRefresh, updateServiceWorker, toast]);
 
   useEffect(() => {
+    if (!bootReady) return;
+    if (!getToken()) return;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const pending = await fetchPendingSignal();
+        if (cancelled || !pending) return;
+        const path = locationRef.current.pathname;
+        const target = `/signal/${pending.signalId}/respond`;
+        if (path === target) return;
+        if (path.startsWith(`/signal/${pending.signalId}/`)) return;
+        if (getActiveSignal() === pending.signalId) return;
+        navigate(target);
+      } catch {}
+    };
+    void check();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void check();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [bootReady, navigate]);
+
+  useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
     const handler = (event: MessageEvent) => {
       const data = event.data as { type?: string; signalId?: string } | null;
       if (!data || !data.signalId) return;
-      if (data.type === 'signal-incoming') {
+      if (data.type === 'signal-incoming' || data.type === 'signal-open') {
         navigate(`/signal/${data.signalId}/respond`);
       } else if (data.type === 'signal-cancel') {
         const path = locationRef.current.pathname;

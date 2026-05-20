@@ -47,6 +47,12 @@ export class SignalsController {
     return this.signals.respond(auth.userId, id, dto.response);
   }
 
+  @Get('signals/pending')
+  @UseGuards(AuthGuard)
+  pending(@CurrentUser() auth: AuthContext) {
+    return this.signals.getPendingForUser(auth.userId, auth.groupId);
+  }
+
   @Get('signals/:id')
   @UseGuards(AuthGuard)
   get(@Param('id') id: string) {
