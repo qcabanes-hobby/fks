@@ -39,8 +39,8 @@ export function SignalRespondPage() {
   }
 
   return (
-    <div className="min-h-full flex flex-col items-center p-6 text-center max-w-md mx-auto">
-      <div className="pt-12 pb-6">
+    <div className="min-h-full flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto">
+      <div className="pb-6">
         <div className="text-6xl mb-4">🥙</div>
         <h1 className="text-2xl font-bold">Kebab signal!</h1>
         {signal.data?.gameName && (
