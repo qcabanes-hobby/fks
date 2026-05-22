@@ -82,15 +82,20 @@ export async function ensurePushSubscription(
   const { publicKey } = await apiRequest<{ publicKey: string }>('/api/push/vapid-public-key', { auth: false });
   if (!publicKey) return false;
 
+  let statusKnown = false;
   let serverSubscribed = false;
   try {
     const status = await apiRequest<{ subscribed: boolean }>('/api/push/status');
     serverSubscribed = !!status.subscribed;
+    statusKnown = true;
   } catch {}
 
   let sub = await reg.pushManager.getSubscription();
 
-  if (sub && !serverSubscribed) {
+  // Only discard a live browser subscription when the server *confirmed* it
+  // doesn't know about us. A failed /status request is treated as "unknown"
+  // and we keep the existing sub — we'll re-POST it below to heal any drift.
+  if (sub && statusKnown && !serverSubscribed) {
     try {
       await sub.unsubscribe();
     } catch {}
@@ -102,6 +107,10 @@ export async function ensurePushSubscription(
     if (!sub) return false;
   }
 
-  await saveSubscriptionToServer(sub);
+  try {
+    await saveSubscriptionToServer(sub);
+  } catch {
+    return false;
+  }
   return true;
 }
