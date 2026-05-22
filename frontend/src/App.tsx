@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { getActiveSignal, getToken, requestPersistentStorage, syncTokenToIdb } from './lib/auth';
 import { ensurePushSubscription } from './lib/push';
 import { hasSkippedInstall, isStandalone } from './lib/pwa';
-import { fetchPendingSignal, useGroup } from './lib/queries';
+import { fetchPendingSignal, qk, useGroup } from './lib/queries';
 import { ToastProvider, useToast } from './components/Toast';
 import { InstallPage } from './pages/InstallPage';
 import { OnboardingPage } from './pages/OnboardingPage';
@@ -29,6 +30,7 @@ function AppInner() {
   const location = useLocation();
   const locationRef = useRef(location);
   locationRef.current = location;
+  const qc = useQueryClient();
   const [bootReady, setBootReady] = useState(false);
   const {
     needRefresh: [needRefresh],
@@ -96,15 +98,15 @@ function AppInner() {
       if (data.type === 'signal-incoming' || data.type === 'signal-open') {
         navigate(`/signal/${data.signalId}/respond`);
       } else if (data.type === 'signal-cancel') {
-        const path = locationRef.current.pathname;
-        if (path === `/signal/${data.signalId}/respond`) {
-          navigate('/games', { replace: true });
-        }
+        // Don't navigate — SignalRespondPage renders the "you missed it"
+        // screen when closedAt is set. Refresh the cached signal so that
+        // screen appears immediately instead of waiting for the next poll.
+        void qc.invalidateQueries({ queryKey: qk.signal(data.signalId) });
       }
     };
     navigator.serviceWorker.addEventListener('message', handler);
     return () => navigator.serviceWorker.removeEventListener('message', handler);
-  }, [navigate]);
+  }, [navigate, qc]);
 
   if (!bootReady) {
     return (
