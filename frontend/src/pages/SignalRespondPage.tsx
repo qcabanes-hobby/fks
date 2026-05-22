@@ -10,6 +10,9 @@ export function SignalRespondPage() {
   const respond = useRespondToSignal();
   const [responded, setResponded] = useState<'accept' | 'reject' | null>(null);
   const signal = useSignal(id, { refetchInterval: responded ? false : 4000 });
+  const isClosed = !!signal.data?.closedAt;
+  const userAccepted = signal.data?.userResponse === 'accept';
+  const showMissed = isClosed && !userAccepted && !responded;
 
   useEffect(() => {
     if (id) void reportSignalDelivered(id);
@@ -22,14 +25,6 @@ export function SignalRespondPage() {
     }
   }, [signal.data?.userResponse, responded, id]);
 
-  useEffect(() => {
-    if (responded) return;
-    if (signal.data?.closedAt) {
-      toast.show('Signal was closed', 'info');
-      navigate('/games', { replace: true });
-    }
-  }, [signal.data?.closedAt, responded, navigate, toast]);
-
   const submit = async (response: 'accept' | 'reject') => {
     if (!id) return;
     try {
@@ -38,13 +33,43 @@ export function SignalRespondPage() {
     } catch (err) {
       const msg = (err as Error).message || 'Could not respond';
       if (/closed/i.test(msg)) {
-        toast.show('Signal was closed', 'info');
-        navigate('/games', { replace: true });
+        await signal.refetch();
         return;
       }
       toast.show(msg, 'error');
     }
   };
+
+  if (showMissed) {
+    const accepted = signal.data?.acceptedCount ?? 0;
+    const previouslyRejected = signal.data?.userResponse === 'reject';
+    const heading = previouslyRejected ? 'You passed on this one' : 'You missed the signal';
+    const subline = previouslyRejected
+      ? "It's wrapped up now."
+      : accepted > 0
+      ? `${accepted} ${accepted === 1 ? 'friend is' : 'friends are'} already in. Catch the next one!`
+      : "It's wrapped up — catch the next one!";
+    return (
+      <div className="min-h-full flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto">
+        <div className="text-7xl mb-6">💨</div>
+        <h1 className="text-2xl font-bold">{heading}</h1>
+        {signal.data?.gameName && (
+          <p className="text-signal-400 font-semibold text-xl mt-2">{signal.data.gameName}</p>
+        )}
+        <p className="text-slate-400 mt-3">{subline}</p>
+        {signal.data?.gameImageUrl && (
+          <img
+            src={signal.data.gameImageUrl}
+            alt=""
+            className="w-32 h-32 object-cover rounded-2xl mt-6 opacity-60"
+          />
+        )}
+        <button onClick={() => navigate('/games', { replace: true })} className="btn-primary mt-8 px-8">
+          Back to games
+        </button>
+      </div>
+    );
+  }
 
   if (responded) {
     const min = signal.data?.minAccepts;
