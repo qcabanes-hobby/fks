@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { setDismissedMissedSignal } from '../lib/auth';
 import { reportSignalDelivered, useRespondToSignal, useSignal } from '../lib/queries';
 import { useSignalExpiry } from '../lib/signal-expiry';
 import { useToast } from '../components/Toast';
@@ -66,7 +67,13 @@ export function SignalRespondPage() {
             className="w-32 h-32 object-cover rounded-2xl mt-6 opacity-60"
           />
         )}
-        <button onClick={() => navigate('/games', { replace: true })} className="btn-primary mt-8 px-8">
+        <button
+          onClick={() => {
+            if (id) setDismissedMissedSignal(id);
+            navigate('/games', { replace: true });
+          }}
+          className="btn-primary mt-8 px-8"
+        >
           Back to games
         </button>
       </div>

@@ -198,7 +198,11 @@ async function reportDelivered(signalId: string): Promise<void> {
 
 self.addEventListener('notificationclick', (event: NotificationEvent) => {
   const data = (event.notification.data || {}) as { signalId?: string };
-  const signalId = data.signalId;
+  // Fall back to the notification tag (also the signalId) when `data` is
+  // unavailable — some browsers drop the data blob across SW restarts.
+  // The tag may carry a ":crew" suffix for the crew-assembled variant.
+  const tag = event.notification.tag || '';
+  const signalId = data.signalId || tag.split(':')[0] || undefined;
   event.notification.close();
   if (!signalId) return;
 

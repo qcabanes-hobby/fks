@@ -1,7 +1,7 @@
 import { del, get, set } from 'idb-keyval';
 
 const KEY = 'fks.pendingSignalIntent';
-const MAX_AGE_MS = 60_000;
+const MAX_AGE_MS = 5 * 60_000;
 
 export interface PendingSignalIntent {
   signalId: string;

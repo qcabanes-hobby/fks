@@ -391,7 +391,7 @@ export class SignalsService implements OnModuleInit, OnModuleDestroy {
 
   async getPendingForUser(userId: string, groupId: string | null) {
     if (!groupId) return null;
-    const signal = await this.prisma.signal.findFirst({
+    const open = await this.prisma.signal.findFirst({
       where: {
         closedAt: null,
         triggeredById: { not: userId },
@@ -404,7 +404,28 @@ export class SignalsService implements OnModuleInit, OnModuleDestroy {
       orderBy: { triggeredAt: 'desc' },
       select: { id: true },
     });
-    return signal ? { signalId: signal.id } : null;
+    if (open) return { signalId: open.id };
+
+    // Fallback for cold boots where the SW notification intent was lost
+    // (Chrome Android start_url launch, intent TTL expired, iOS Safari with
+    // no SW handoff, etc.): surface a recently-closed signal the user was
+    // supposed to respond to but never accepted. The respond page renders
+    // the "you missed it" screen when the fetched signal is closed.
+    const cutoff = new Date(Date.now() - SIGNAL_TIMEOUT_MS);
+    const missed = await this.prisma.signal.findFirst({
+      where: {
+        closedAt: { gte: cutoff },
+        triggeredById: { not: userId },
+        game: {
+          groupId,
+          subscriptions: { some: { userId } },
+        },
+        NOT: { responses: { some: { userId, response: 'accept' } } },
+      },
+      orderBy: { closedAt: 'desc' },
+      select: { id: true },
+    });
+    return missed ? { signalId: missed.id } : null;
   }
 
   async getCounts(

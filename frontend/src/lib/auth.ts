@@ -2,6 +2,21 @@ import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
 
 const STORAGE_KEY = 'fks.authToken';
 const ACTIVE_SIGNAL_KEY = 'fks.activeSignal';
+const DISMISSED_MISSED_KEY = 'fks.dismissedMissedSignal';
+
+export function getDismissedMissedSignal(): string | null {
+  try {
+    return localStorage.getItem(DISMISSED_MISSED_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setDismissedMissedSignal(id: string): void {
+  try {
+    localStorage.setItem(DISMISSED_MISSED_KEY, id);
+  } catch {}
+}
 
 export function getActiveSignal(): string | null {
   try {

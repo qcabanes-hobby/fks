@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { getActiveSignal, getToken, requestPersistentStorage, syncTokenToIdb } from './lib/auth';
+import {
+  getActiveSignal,
+  getDismissedMissedSignal,
+  getToken,
+  requestPersistentStorage,
+  syncTokenToIdb,
+} from './lib/auth';
 import { clearPendingSignalIntent, consumePendingSignalIntent } from './lib/notification-intent';
 import { ensurePushSubscription } from './lib/push';
 import { hasSkippedInstall, isStandalone } from './lib/pwa';
@@ -83,6 +89,7 @@ function AppInner() {
         if (path === target) return;
         if (path.startsWith(`/signal/${pending.signalId}/`)) return;
         if (getActiveSignal() === pending.signalId) return;
+        if (getDismissedMissedSignal() === pending.signalId) return;
         navigate(target);
       } catch {}
     };
