@@ -104,6 +104,7 @@ self.addEventListener('push', (event: PushEvent) => {
 
   event.waitUntil(
     (async () => {
+      await self.registration.showNotification(title, options);
       const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       const visible = clients.find((c) => (c as WindowClient).visibilityState === 'visible');
       if (visible) {
@@ -112,8 +113,6 @@ self.addEventListener('push', (event: PushEvent) => {
           signalId: payload!.signalId,
           gameName: payload!.gameName,
         });
-      } else {
-        await self.registration.showNotification(title, options);
       }
       await reportDelivered(payload!.signalId);
     })(),
