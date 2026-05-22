@@ -36,10 +36,20 @@ export class PushService implements OnModuleInit {
     p256dh: string,
     auth: string,
   ): Promise<void> {
-    await this.prisma.device.update({
-      where: { id: deviceId },
-      data: { pushEndpoint: endpoint, pushP256dh: p256dh, pushAuth: auth },
-    });
+    // Null out any *other* device row that's currently holding this endpoint
+    // before claiming it here. Without this, the unique index on
+    // pushEndpoint would error on re-onboarding / IDB-clear flows where the
+    // browser hands the same endpoint to a new Device row.
+    await this.prisma.$transaction([
+      this.prisma.device.updateMany({
+        where: { pushEndpoint: endpoint, NOT: { id: deviceId } },
+        data: { pushEndpoint: null, pushP256dh: null, pushAuth: null },
+      }),
+      this.prisma.device.update({
+        where: { id: deviceId },
+        data: { pushEndpoint: endpoint, pushP256dh: p256dh, pushAuth: auth },
+      }),
+    ]);
   }
 
   async isDeviceSubscribed(deviceId: string): Promise<boolean> {

@@ -23,7 +23,7 @@ model Device {
   id           String   @id @default(cuid())
   userId       String
   authToken    String   @unique
-  pushEndpoint String?
+  pushEndpoint String?  @unique
   pushP256dh   String?
   pushAuth     String?
   userAgent    String?
