@@ -17,9 +17,8 @@ export function SignalRespondPage() {
 
   useEffect(() => {
     if (responded) return;
-    const existing = signal.data?.userResponse;
-    if (existing === 'accept' || existing === 'reject') {
-      setResponded(existing);
+    if (signal.data?.userResponse === 'accept') {
+      setResponded('accept');
     }
   }, [signal.data?.userResponse, responded, id]);
 
@@ -74,11 +73,15 @@ export function SignalRespondPage() {
     );
   }
 
+  const previouslyRejected = signal.data?.userResponse === 'reject';
+
   return (
     <div className="min-h-full flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto">
       <div className="pb-6">
         <div className="text-6xl mb-4">🥙</div>
-        <h1 className="text-2xl font-bold">Kebab signal!</h1>
+        <h1 className="text-2xl font-bold">
+          {previouslyRejected ? 'Changed your mind?' : 'Kebab signal!'}
+        </h1>
         {signal.data?.gameName && (
           <p className="text-signal-400 font-semibold text-xl mt-2">{signal.data.gameName}</p>
         )}

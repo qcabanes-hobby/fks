@@ -166,14 +166,12 @@ export function GamesPage() {
                     navigate(`/signal/${active.id}/sent`);
                     return;
                   }
-                  if (!active.userResponse) {
+                  if (active.userResponse !== 'accept') {
                     navigate(`/signal/${active.id}/respond`);
                     return;
                   }
                   toast.show(
-                    active.userResponse === 'accept'
-                      ? "You're already in — waiting on the rest of the crew."
-                      : "You already said no — waiting for the signal to close.",
+                    "You're already in — waiting on the rest of the crew.",
                     'info',
                   );
                   return;
@@ -331,7 +329,7 @@ function GameCard({ game, myId, onTap, onToggle, menuOpen, setMenuOpen, onEditIm
   if (active) {
     if (isMine) subtitle = 'Your signal is live — tap to view';
     else if (myResponse === 'accept') subtitle = "You're in — waiting on the crew";
-    else if (myResponse === 'reject') subtitle = 'You passed — signal still open';
+    else if (myResponse === 'reject') subtitle = 'You passed — tap to change your mind';
     else subtitle = `${active.triggeredByUsername} sent a signal — tap to respond`;
   } else if (!game.subscribed) {
     subtitle = 'Subscribe to send a signal';
