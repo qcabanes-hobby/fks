@@ -14,12 +14,23 @@ export function SignalRespondPage() {
   const signal = useSignal(id, { refetchInterval: responded ? false : 4000 });
   const isClosed = !!signal.data?.closedAt;
   const userAccepted = signal.data?.userResponse === 'accept';
-  const showMissed = isClosed && !userAccepted && !responded;
   const expiry = useSignalExpiry(signal.data?.triggeredAt, isClosed || !!responded);
+  // Treat the local countdown reaching zero as closed too. Polling can be up
+  // to 4s behind, and react-query pauses interval refetches while the tab is
+  // backgrounded — without this the page would briefly stay actionable past
+  // the server-side auto-cancel.
+  const timedOut = expiry?.msLeft === 0;
+  const showMissed = (isClosed || timedOut) && !userAccepted && !responded;
 
   useEffect(() => {
     if (id) void reportSignalDelivered(id);
   }, [id]);
+
+  useEffect(() => {
+    if (timedOut && !isClosed && !responded) {
+      void signal.refetch();
+    }
+  }, [timedOut, isClosed, responded, signal]);
 
   useEffect(() => {
     if (responded) return;
