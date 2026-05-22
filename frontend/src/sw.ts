@@ -2,6 +2,7 @@
 import { precacheAndRoute } from 'workbox-precaching';
 import { clientsClaim } from 'workbox-core';
 import { get as idbGet } from 'idb-keyval';
+import { setPendingSignalIntent } from './lib/notification-intent';
 
 declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<{ url: string; revision: string | null }>;
@@ -208,6 +209,13 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
 
   event.waitUntil(
     (async () => {
+      // Persist the intent regardless of how the browser handles openWindow.
+      // Some browsers (notably Chrome Android PWAs) launch at start_url
+      // instead of the URL passed to openWindow when the app is cold-booted
+      // from a notification. App boot consumes this and navigates to the
+      // respond page even if the URL was dropped.
+      await setPendingSignalIntent(signalId);
+
       const url = `/signal/${signalId}/respond`;
       const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const client of all) {

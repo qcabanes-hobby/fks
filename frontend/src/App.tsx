@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import { useQueryClient } from '@tanstack/react-query';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { getActiveSignal, getToken, requestPersistentStorage, syncTokenToIdb } from './lib/auth';
+import { clearPendingSignalIntent, consumePendingSignalIntent } from './lib/notification-intent';
 import { ensurePushSubscription } from './lib/push';
 import { hasSkippedInstall, isStandalone } from './lib/pwa';
 import { fetchPendingSignal, qk, useGroup } from './lib/queries';
@@ -45,12 +46,20 @@ function AppInner() {
     (async () => {
       await syncTokenToIdb();
       void requestPersistentStorage();
+      // Consume a pending notification intent BEFORE bootReady flips so
+      // RootRedirect doesn't render and bounce us to /games. This recovers
+      // the closed-signal "you missed it" flow when the browser launched
+      // us at start_url instead of the URL the SW passed to openWindow.
+      const intent = await consumePendingSignalIntent();
+      if (intent && getToken()) {
+        navigate(`/signal/${intent.signalId}/respond`, { replace: true });
+      }
       setBootReady(true);
       if (getToken()) {
         void ensurePushSubscription({ promptIfNeeded: false }).catch(() => {});
       }
     })();
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     if (needRefresh) {
@@ -96,6 +105,10 @@ function AppInner() {
       const data = event.data as { type?: string; signalId?: string } | null;
       if (!data || !data.signalId) return;
       if (data.type === 'signal-incoming' || data.type === 'signal-open') {
+        // Warm-boot path: the SW already wrote the intent to IDB, but we
+        // handled it here via postMessage. Clear so a later cold boot
+        // doesn't replay this navigation.
+        void clearPendingSignalIntent();
         navigate(`/signal/${data.signalId}/respond`);
       } else if (data.type === 'signal-cancel') {
         // Don't navigate — SignalRespondPage renders the "you missed it"
