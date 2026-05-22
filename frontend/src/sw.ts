@@ -132,6 +132,55 @@ async function respondInBackground(signalId: string, response: 'accept' | 'rejec
   } catch {}
 }
 
+function urlBase64ToUint8Array(base64: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+  const normalized = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(normalized);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+interface PushSubscriptionChangeEventLike extends ExtendableEvent {
+  oldSubscription?: PushSubscription | null;
+  newSubscription?: PushSubscription | null;
+}
+
+self.addEventListener('pushsubscriptionchange', (event: Event) => {
+  const evt = event as PushSubscriptionChangeEventLike;
+  evt.waitUntil(
+    (async () => {
+      const token = await idbGet<string>(AUTH_TOKEN_KEY).catch(() => null);
+      if (!token) return;
+      let sub = evt.newSubscription ?? null;
+      if (!sub) {
+        const keyRes = await fetch('/api/push/vapid-public-key').catch(() => null);
+        if (!keyRes || !keyRes.ok) return;
+        const { publicKey } = (await keyRes.json().catch(() => ({}))) as { publicKey?: string };
+        if (!publicKey) return;
+        try {
+          sub = await self.registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+          });
+        } catch {
+          return;
+        }
+      }
+      const raw = sub.toJSON();
+      if (!raw.endpoint || !raw.keys) return;
+      await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ endpoint: raw.endpoint, keys: raw.keys }),
+      }).catch(() => undefined);
+    })(),
+  );
+});
+
 async function reportDelivered(signalId: string): Promise<void> {
   const token = await idbGet<string>(AUTH_TOKEN_KEY).catch(() => null);
   if (!token) return;
