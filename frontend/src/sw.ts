@@ -69,7 +69,7 @@ self.addEventListener('push', (event: PushEvent) => {
           body: crewBody,
           icon: '/icons/icon-192.png',
           badge: '/icons/icon-192.png',
-          tag: payload!.signalId,
+          tag: `${payload!.signalId}:crew`,
           renotify: true,
           data: { signalId: payload!.signalId },
         };
