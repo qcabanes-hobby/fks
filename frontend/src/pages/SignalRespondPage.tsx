@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { reportSignalDelivered, useRespondToSignal, useSignal } from '../lib/queries';
+import { useSignalExpiry } from '../lib/signal-expiry';
 import { useToast } from '../components/Toast';
 
 export function SignalRespondPage() {
@@ -13,6 +14,7 @@ export function SignalRespondPage() {
   const isClosed = !!signal.data?.closedAt;
   const userAccepted = signal.data?.userResponse === 'accept';
   const showMissed = isClosed && !userAccepted && !responded;
+  const expiry = useSignalExpiry(signal.data?.triggeredAt, isClosed || !!responded);
 
   useEffect(() => {
     if (id) void reportSignalDelivered(id);
@@ -119,10 +121,15 @@ export function SignalRespondPage() {
       {signal.data?.gameImageUrl && (
         <img src={signal.data.gameImageUrl} alt="" className="w-40 h-40 object-cover rounded-2xl mb-6" />
       )}
-      <div className="card w-full mb-8">
+      <div className="card w-full mb-4">
         <div className="text-4xl font-bold text-signal-400">{signal.data?.acceptedCount ?? '…'}</div>
         <div className="text-slate-400 text-sm">in so far</div>
       </div>
+      {expiry && (
+        <p className="text-slate-500 text-xs mb-6">
+          Expires in <span className="font-mono text-slate-300">{expiry.label}</span>
+        </p>
+      )}
       <div className="w-full space-y-3">
         <button onClick={() => submit('accept')} disabled={respond.isPending} className="btn-primary w-full text-lg py-4">
           I'm in 🥙

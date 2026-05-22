@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useCloseSignal, useSignal } from '../lib/queries';
 import { clearActiveSignal, getToken, setActiveSignal } from '../lib/auth';
+import { useSignalExpiry } from '../lib/signal-expiry';
 import { useToast } from '../components/Toast';
 
 export function SignalSentPage() {
@@ -76,6 +77,7 @@ export function SignalSentPage() {
   const minAccepts = signal.data?.minAccepts;
   const gameName = signal.data?.gameName ?? 'your game';
   const closed = liveClosed ?? !!signal.data?.closedAt;
+  const expiry = useSignalExpiry(signal.data?.triggeredAt, closed);
   const crewAssembled = typeof minAccepts === 'number' && count >= minAccepts;
   const everyoneResponded =
     typeof totalSubscribers === 'number' && count + rejected >= totalSubscribers;
@@ -164,6 +166,11 @@ export function SignalSentPage() {
           <div className="text-slate-500 text-xs mt-1">{rejected} can't make it</div>
         )}
       </div>
+      {expiry && (
+        <p className="text-slate-500 text-xs mt-4">
+          Auto-cancels in <span className="font-mono text-slate-300">{expiry.label}</span>
+        </p>
+      )}
       <button onClick={onDone} disabled={close.isPending} className="btn-secondary mt-8 px-8">
         {close.isPending ? 'Stopping…' : 'Stop signal'}
       </button>

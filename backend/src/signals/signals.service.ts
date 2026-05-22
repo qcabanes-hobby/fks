@@ -6,6 +6,8 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
 } from '@nestjs/common';
 
 export class RateLimitedException extends HttpException {
@@ -21,9 +23,12 @@ import { PushService } from '../push/push.service';
 import { SignalRateLimitService } from './rate-limit.service';
 import { SignalStreamService } from './signal-stream.service';
 
+export const SIGNAL_TIMEOUT_MS = 5 * 60 * 1000;
+
 @Injectable()
-export class SignalsService {
+export class SignalsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SignalsService.name);
+  private readonly expiryTimers = new Map<string, NodeJS.Timeout>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -31,6 +36,76 @@ export class SignalsService {
     private readonly streams: SignalStreamService,
     private readonly rateLimit: SignalRateLimitService,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    // Rehydrate auto-expiry after a restart: any signal still open past its
+    // 5-minute window is closed immediately; the rest get a fresh timer for
+    // the remaining time so they can't block forever.
+    const openSignals = await this.prisma.signal.findMany({
+      where: { closedAt: null },
+      select: { id: true, triggeredAt: true },
+    });
+    const now = Date.now();
+    for (const s of openSignals) {
+      const remaining = s.triggeredAt.getTime() + SIGNAL_TIMEOUT_MS - now;
+      if (remaining <= 0) {
+        void this.autoExpire(s.id);
+      } else {
+        this.scheduleExpiry(s.id, remaining);
+      }
+    }
+  }
+
+  onModuleDestroy(): void {
+    for (const timer of this.expiryTimers.values()) clearTimeout(timer);
+    this.expiryTimers.clear();
+  }
+
+  private scheduleExpiry(signalId: string, delayMs: number): void {
+    const existing = this.expiryTimers.get(signalId);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      this.expiryTimers.delete(signalId);
+      void this.autoExpire(signalId);
+    }, delayMs);
+    this.expiryTimers.set(signalId, timer);
+  }
+
+  private clearExpiry(signalId: string): void {
+    const timer = this.expiryTimers.get(signalId);
+    if (timer) {
+      clearTimeout(timer);
+      this.expiryTimers.delete(signalId);
+    }
+  }
+
+  private async autoExpire(signalId: string): Promise<void> {
+    try {
+      const signal = await this.prisma.signal.findUnique({ where: { id: signalId } });
+      if (!signal || signal.closedAt) return;
+      await this.prisma.signal.update({
+        where: { id: signalId },
+        data: { closedAt: new Date() },
+      });
+      const [subscribers, responders, counts] = await Promise.all([
+        this.prisma.gameSubscription.findMany({
+          where: { gameId: signal.gameId, userId: { not: signal.triggeredById } },
+          select: { userId: true },
+        }),
+        this.prisma.signalResponse.findMany({
+          where: { signalId },
+          select: { userId: true },
+        }),
+        this.getCounts(signalId),
+      ]);
+      const respondedIds = new Set(responders.map((r) => r.userId));
+      const pending = subscribers.filter((s) => !respondedIds.has(s.userId));
+      this.fanout(pending, { signalId, type: 'cancel' as const }, 'expire-cancel');
+      this.streams.emit(signalId, { ...counts, closed: true });
+    } catch (err) {
+      this.logger.warn(`auto-expire failed for ${signalId}: ${(err as Error).message}`);
+    }
+  }
 
   // Fan out push notifications off the request hot path. The triggering
   // user's HTTP response shouldn't wait for FCM/Autopush round-trips —
@@ -122,6 +197,7 @@ export class SignalsService {
     this.fanout(subscribers, payload, 'signal');
 
     this.streams.emit(signal.id, { acceptedCount: 1, rejectedCount: 0, deliveredCount: 0 });
+    this.scheduleExpiry(signal.id, SIGNAL_TIMEOUT_MS);
     return { signalId: signal.id };
   }
 
@@ -187,6 +263,7 @@ export class SignalsService {
     const shouldClose = allDone || thresholdReached;
     if (shouldClose) {
       await this.prisma.signal.update({ where: { id: signalId }, data: { closedAt: new Date() } });
+      this.clearExpiry(signalId);
     }
     if (thresholdReached && !allDone) {
       await this.broadcastCrewAssembled(signal.id, signal.gameId, signal.game.name, signal.triggeredById, counts.acceptedCount);
@@ -256,6 +333,7 @@ export class SignalsService {
       where: { id: signalId },
       data: { closedAt: new Date() },
     });
+    this.clearExpiry(signalId);
 
     const subscribers = await this.prisma.gameSubscription.findMany({
       where: { gameId: signal.gameId, userId: { not: userId } },
