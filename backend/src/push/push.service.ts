@@ -71,20 +71,55 @@ export class PushService implements OnModuleInit {
     auth: string,
     body: string,
   ): Promise<void> {
-    try {
-      await webpush.sendNotification({ endpoint, keys: { p256dh, auth } }, body);
-    } catch (err) {
-      const statusCode = (err as { statusCode?: number }).statusCode;
-      if (statusCode === 404 || statusCode === 410) {
-        await this.prisma.device
-          .update({
-            where: { id: deviceId },
-            data: { pushEndpoint: null, pushP256dh: null, pushAuth: null },
-          })
-          .catch(() => undefined);
+    const maxAttempts = 3;
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        await webpush.sendNotification(
+          { endpoint, keys: { p256dh, auth } },
+          body,
+          { urgency: 'high' },
+        );
         return;
+      } catch (err) {
+        lastErr = err;
+        const statusCode = (err as { statusCode?: number }).statusCode;
+        // Permanent: subscription is gone or rejected. Clear it so the
+        // client re-prompts for permission/re-subscribes on next visit.
+        if (statusCode === 403 || statusCode === 404 || statusCode === 410) {
+          await this.clearPushFields(deviceId);
+          return;
+        }
+        // Other 4xx (e.g., 413 payload too large, 400 bad VAPID): logging
+        // only — retrying won't help and the endpoint isn't necessarily dead.
+        if (statusCode && statusCode >= 400 && statusCode < 500) {
+          this.logger.warn(
+            `web-push ${statusCode} for device ${deviceId} (no retry): ${(err as Error).message}`,
+          );
+          return;
+        }
+        // 5xx or network error: retry with backoff.
+        if (attempt < maxAttempts - 1) {
+          await sleep(50 * 2 ** attempt);
+          continue;
+        }
       }
-      this.logger.warn(`web-push error for device ${deviceId}: ${(err as Error).message}`);
     }
+    this.logger.warn(
+      `web-push failed after ${maxAttempts} attempts for device ${deviceId}: ${(lastErr as Error)?.message}`,
+    );
   }
+
+  private async clearPushFields(deviceId: string): Promise<void> {
+    await this.prisma.device
+      .update({
+        where: { id: deviceId },
+        data: { pushEndpoint: null, pushP256dh: null, pushAuth: null },
+      })
+      .catch(() => undefined);
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
