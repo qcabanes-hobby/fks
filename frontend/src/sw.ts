@@ -11,7 +11,10 @@ const AUTH_TOKEN_KEY = 'fks.authToken';
 
 precacheAndRoute(self.__WB_MANIFEST || []);
 
-self.skipWaiting();
+// Don't skipWaiting unconditionally — the page shows a "App updated, reload"
+// toast (App.tsx) which depends on the new SW sitting in the waiting state.
+// The toast's Reload button calls updateServiceWorker(true) → posts
+// SKIP_WAITING → the message listener below activates the new SW.
 clientsClaim();
 
 // Explicit no-op fetch handler so install-criteria audits that look for
