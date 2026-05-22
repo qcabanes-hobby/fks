@@ -4,6 +4,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 
@@ -22,12 +23,31 @@ import { SignalStreamService } from './signal-stream.service';
 
 @Injectable()
 export class SignalsService {
+  private readonly logger = new Logger(SignalsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly push: PushService,
     private readonly streams: SignalStreamService,
     private readonly rateLimit: SignalRateLimitService,
   ) {}
+
+  // Fan out push notifications off the request hot path. The triggering
+  // user's HTTP response shouldn't wait for FCM/Autopush round-trips —
+  // a single slow endpoint would block the spinner for the full timeout.
+  private fanout(
+    recipients: ReadonlyArray<{ userId: string }>,
+    payload: Record<string, unknown>,
+    label: string,
+  ): void {
+    void Promise.all(
+      recipients.map((r) =>
+        this.push.sendToUser(r.userId, payload).catch((err: Error) => {
+          this.logger.warn(`${label} fanout failed for ${r.userId}: ${err.message}`);
+        }),
+      ),
+    );
+  }
 
   async trigger(
     userId: string,
@@ -99,7 +119,7 @@ export class SignalsService {
       currentAccepted: 1,
     };
 
-    await Promise.all(subscribers.map((s) => this.push.sendToUser(s.userId, payload)));
+    this.fanout(subscribers, payload, 'signal');
 
     this.streams.emit(signal.id, { acceptedCount: 1, rejectedCount: 0, deliveredCount: 0 });
     return { signalId: signal.id };
@@ -199,10 +219,8 @@ export class SignalsService {
     const crewPayload = { signalId, type: 'crew-assembled' as const, gameName, acceptedCount };
     const cancelPayload = { signalId, type: 'cancel' as const };
 
-    await Promise.all([
-      ...accepted.map((a) => this.push.sendToUser(a.userId, crewPayload)),
-      ...pending.map((p) => this.push.sendToUser(p.userId, cancelPayload)),
-    ]);
+    this.fanout(accepted, crewPayload, 'crew');
+    this.fanout(pending, cancelPayload, 'crew-cancel');
   }
 
   private async allSubscribersResponded(
@@ -251,7 +269,7 @@ export class SignalsService {
     const pending = subscribers.filter((s) => !respondedIds.has(s.userId));
 
     const payload = { signalId, type: 'cancel' as const };
-    await Promise.all(pending.map((p) => this.push.sendToUser(p.userId, payload)));
+    this.fanout(pending, payload, 'close-cancel');
   }
 
   async getSignal(signalId: string, viewerId?: string) {
